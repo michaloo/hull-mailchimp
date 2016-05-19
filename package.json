@@ -1,0 +1,59 @@
+{
+  "name": "hull-maichimp",
+  "version": "0.0.2",
+  "description": "Hull Mailchimp integration",
+  "main": "index.js",
+  "scripts": {
+    "lint": "eslint src",
+    "start": "./bin/start"
+  },
+  "engines": {
+    "node": "5.x",
+    "npm": "2.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hull-ships/hull-maichimp.git"
+  },
+  "keywords": [
+    "hull",
+    "maichimp",
+    "crm"
+  ],
+  "author": "Hull",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/hull-ships/hull-maichimp/issues"
+  },
+  "homepage": "https://github.com/hull-ships/hull-maichimp",
+  "dependencies": {
+    "JSONStream": "^1.1.1",
+    "babel-core": "^6.4.5",
+    "babel-preset-es2015": "^6.3.13",
+    "babel-preset-stage-0": "^6.3.13",
+    "babel-register": "^6.4.3",
+    "bluebird": "^3.3.5",
+    "body-parser": "^1.15.1",
+    "ejs": "^2.4.1",
+    "eslint": "^2.9.0",
+    "event-stream": "^3.3.2",
+    "express": "^4.13.4",
+    "html": "0.0.10",
+    "hull": "0.6.10",
+    "jwt-simple": "^0.5.0",
+    "lint": "^1.1.2",
+    "lodash": "^4.12.0",
+    "mailchimp": "^1.1.6",
+    "mailchimp-api-v3": "^1.0.0",
+    "object-mapper": "^3.0.1",
+    "request": "^2.72.0",
+    "request-promise": "^3.0.0",
+    "simple-oauth2": "^0.7.0"
+  },
+  "devDependencies": {
+    "babel-eslint": "^6.0.4",
+    "eslint": "^2.9.0",
+    "eslint-config-airbnb-base": "^3.0.1",
+    "eslint-plugin-import": "^1.8.0"
+  }
+}

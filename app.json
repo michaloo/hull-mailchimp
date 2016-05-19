@@ -1,0 +1,9 @@
+{
+  "name": "Hull Mailchimp",
+  "description": "A Hull Ship for Mailchimp Sync.",
+  "repository": "https://github.com/hull-ships/hull-mailchimp",
+  "website": "http://www.hull.io",
+  "success_url": "/",
+  "env": {},
+  "scripts": {}
+}

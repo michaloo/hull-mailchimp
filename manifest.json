@@ -1,0 +1,49 @@
+
+{
+  "name": "Mailchimp",
+  "description": "Synchronize Segments as Mailchimp Lists",
+  "tags": ["outgoing", "batch"],
+  "picture": "picture.png",
+  "admin" : "/auth/",
+  "version": "0.0.1",
+  "private_settings":[
+    {
+      "name": "synchronized_segments",
+      "title": "Filtered Segments",
+      "description": "Only trigger if user matches at least one these segments (Empty to send everyone)",
+      "type": "array",
+      "format": "segment"
+    },
+    {
+      "name": "api_key",
+      "title": "API Key",
+      "description": "Token or API Key (click on the right to fill it in)",
+      "type": "string"
+    },
+    {
+      "name": "domain",
+      "title": "API Domain",
+      "description": "Mailchimp API Domain  (click on the right to fill it in)",
+      "type": "string"
+    },
+    {
+      "name": "list_id",
+      "title": "Mailchimp List ID",
+      "description": "Leave empty to create a new list named 'Hull'",
+      "type": "string"
+    },
+    {
+      "name": "segment_mapping",
+      "type": "object",
+      "properties": {},
+      "format": "hidden"
+    }
+  ],
+  "readme": "readme.md",
+  "ui": false,
+  "subscriptions": [
+    {
+      "url": "/notify"
+    }
+  ]
+}

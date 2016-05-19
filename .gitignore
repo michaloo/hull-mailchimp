@@ -1,0 +1,7 @@
+.env
+.env.*
+npm-debug.log
+node_modules
+tmp
+config.json
+dist

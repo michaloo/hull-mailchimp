@@ -1,0 +1,59 @@
+<html>
+<head>
+  <title>Hull <%= name %></title>
+  <link rel="stylesheet" href="//dd04rofzygnm0.cloudfront.net/releases/master/865f04865d2448286626bac92c518a8f8ea8bafe/stylesheets/neue.css" />
+</head>
+<body>
+  <div class="row">
+    <div class="col-md-4 col-md-offset-4 col-sm-offset-2 col-sm-8 col-xs-offset-1 col-xs-10 mt-2 panel">
+      <div class="panel-body">
+        <div class="mb-1">
+          <h1 class="mb-0 mt-05  text-center"><i class="icon icon-hull" style="font-size:64px;"></i></h1>
+          <div class="mb-1 media">
+            <div class="media-left">
+              <div class="media-object pr-1 pt-05">
+                <div class="check valid"><i class="icon icon-valid"></i></div>
+              </div>
+            </div>
+            <div class="media-body pt-1">
+              <h4 class="m-0 text-muted">Connected to Mailchimp</h4>
+              <p>
+                <a href="<%=list_url%>" target="_blank"> View your lists</a>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+  window.hullAuthCompleted = function() {
+      window.location.reload();
+  }
+  </script>
+  <style type="text/css" media="screen">
+    .media{
+      width: 260px;
+      margin: 0 auto;
+    }
+    .check i.icon {
+      color: rgba(75, 222, 122, 0.52);
+      font-size: 2pc;
+      position: relative;
+      top: -11px;
+      left: 3px;
+    }
+    .check.valid {
+      border-color: rgba(75, 222, 122, 0.52);
+    }
+    .check {
+      border-radius: 100px;
+      border: 2px solid transparent;
+      padding: 0 5px;
+      height: 37px;
+      width: 37px;
+      position: relative;
+    }
+  </style>
+</body>
+</html>
