@@ -3,7 +3,14 @@
   "description": "A Hull Ship for Mailchimp Sync.",
   "repository": "https://github.com/hull-ships/hull-mailchimp",
   "website": "http://www.hull.io",
-  "success_url": "/",
-  "env": {},
+  "success_url": "/readme",
+  "env": {
+    "MAILCHIMP_CLIENT_ID" : {
+      "description" : "Mailchimp client ID used to get an access token"
+    },
+    "MAILCHIMP_CLIENT_SECRET" : {
+      "description" : "Mailchimp client Secret used to get an access token"
+    }
+  },
   "scripts": {}
 }
