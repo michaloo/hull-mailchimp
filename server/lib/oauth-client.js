@@ -1,9 +1,8 @@
-import express from "express";
+import { Router } from "express";
 import bodyParser from "body-parser";
 import fetchShip from "./middlewares/fetch-ship";
 import oauth2Factory from "simple-oauth2";
 import rp from "request-promise";
-import querystring from "querystring";
 
 export default function oauth({
   name, clientID, clientSecret,
@@ -21,7 +20,7 @@ export default function oauth({
 
   function renderHome(req, res) {
     const { ship = {}, } = req.hull;
-    const { domain, api_key: apiKey, list_id: listID } = ship.private_settings || {};
+    const { domain, api_key: apiKey } = ship.private_settings || {};
     const redirect_uri = `https://${req.hostname}${req.baseUrl}${callbackUrl}?hullToken=${req.hull.hullToken}`;
     const viewData = {
       name,
@@ -87,8 +86,7 @@ export default function oauth({
     }).then(saveToken, (err) => res.send(err));
   }
 
-  const router = express.Router();
-
+  const router = Router();
   router.use(bodyParser.json());
   router.use(fetchShip);
   router.get(homeUrl, renderHome);

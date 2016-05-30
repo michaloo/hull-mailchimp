@@ -11,21 +11,20 @@ export default function (options) {
       if (forceUpdate) _cache[shipId] = null;
       _cache[shipId] = _cache[shipId] || client.get(shipId);
       return _cache[shipId];
-    } else {
-      return client.get(shipId);
     }
+    return client.get(shipId);
   }
 
   function parseConfig(query) {
-    return ["organization", "ship", "secret"].reduce((cfg, k)=> {
+    return ["organization", "ship", "secret"].reduce((cfg, k) => {
       const val = query[k];
-      if (typeof val === 'string') {
+      if (typeof val === "string") {
         cfg[k] = val;
       } else if (val && val.length) {
         cfg[k] = val[0];
       }
 
-      if (typeof cfg[k] === 'string') {
+      if (typeof cfg[k] === "string") {
         cfg[k] = cfg[k].trim();
       }
 
@@ -57,7 +56,6 @@ export default function (options) {
     }
 
     if (config.organization && config.ship && config.secret) {
-
       const client = req.hull.client = new Hull({
         id: config.ship,
         organization: config.organization,
@@ -77,14 +75,14 @@ export default function (options) {
         }, (err) => {
           res.status(404);
           res.status({ reason: "ship_not_found", message: "Ship not found" });
-          res.end("Error:" + err.toString());
+          res.end(`Error: ${err.toString()}`);
         });
       } else {
         done();
       }
     } else {
       res.status(401);
-      res.send({ reason: 'hull_auth', message: 'Missing Hull credentials' });
+      res.send({ reason: "hull_auth", message: "Missing Hull credentials" });
       res.end();
     }
   };
