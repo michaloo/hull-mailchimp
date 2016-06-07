@@ -23,6 +23,7 @@ export default class MailchimpClient {
         if (err) {
           const error = new Error(err.title);
           error.status = err.status;
+          console.log("Error: ", err);
           reject(err);
         } else {
           resolve(result);

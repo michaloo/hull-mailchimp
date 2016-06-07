@@ -295,6 +295,7 @@ export default class SegmentSyncAgent {
    * @return {undefined}
    */
   handleExtract({ url, format }, callback) {
+    // FIXME > return trype invalid - either we're returniung a promise or a request stream.
     if (!url) return Promise.reject(new Error("Missing URL"));
     const users = [];
     const decoder = format === "csv" ? CSVStream.createStream({ escapeChar: "\"", enclosedChar: "\"" }) : JSONStream.parse();
@@ -356,7 +357,7 @@ export default class SegmentSyncAgent {
         return res;
       }, {});
       return audiencesBySegmentId;
-    });
+    }, (err) => console.log(err));
   }
 
 }

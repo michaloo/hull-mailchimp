@@ -81,7 +81,7 @@ export default class MailchimpList extends SyncAgent {
       return this.saveAudienceMapping(segment.id, audience.id).then(() => {
         return Object.assign({ isNew: true }, audience);
       });
-    });
+    }, (err) => this.hull.utils.log("Error in createAudience", err));
   }
 
   // Deletes an audience (aka Mailchimp Segment)
@@ -96,7 +96,7 @@ export default class MailchimpList extends SyncAgent {
     }).then(() => {
       // Save audience mapping in Ship settings once the audience is removed
       return this.saveAudienceMapping(segmentId, null);
-    });
+    }, (err) => this.hull.utils.log("Error in deleteAudience", err));
   }
 
   removeUsersFromAudience(audienceId, users = []) {
@@ -117,21 +117,22 @@ export default class MailchimpList extends SyncAgent {
   addUsersToAudience(audienceId, users = []) {
     const usersToAdd = users.filter(u => !_.isEmpty(u.email));
     return this.ensureUsersSubscribed(usersToAdd)
-      .then(() => {
-        const batch = usersToAdd.map(user => {
-          return {
-            body: { email_address: user.email, status: "subscribed" },
-            method: "post",
-            path: `segments/${audienceId}/members`
-          };
-        });
-        return this.request(batch).then(responses => {
-          responses.map((mc, i) => {
-            // Update user's mailchimp/* traits
-            return this.updateUser(usersToAdd[i], mc);
-          });
+    .then(() => {
+      const batch = usersToAdd.map(user => {
+        return {
+          body: { email_address: user.email, status: "subscribed" },
+          method: "post",
+          path: `segments/${audienceId}/members`
+        };
+      });
+      return this.request(batch)
+      .then(responses => {
+        responses.map((mc, i) => {
+          // Update user's mailchimp/* traits
+          return this.updateUser(usersToAdd[i], mc);
         });
       });
+    }, (err) => this.hull.utils.log("Error in addUsersToAudience", err));
   }
 
   // Ensure users are subscribed to the list
@@ -182,7 +183,7 @@ export default class MailchimpList extends SyncAgent {
         return user;
       });
       return subscribedUsers;
-    });
+    }, (err) => this.hull.utils.log("Error in ensureUsersSubscribed", err));
   }
 
   updateUser(user, mailchimpUser) {
@@ -213,6 +214,7 @@ export default class MailchimpList extends SyncAgent {
   }
 
   request(params) {
+    this.hull.utils.log("request", params);
     return this.getClient().request(params);
   }
 
@@ -220,6 +222,10 @@ export default class MailchimpList extends SyncAgent {
     return this.request({
       path: "segments",
       body: { type: "static", count: 100 }
-    }).then(({ segments }) => segments);
+    })
+    .then(
+      ({ segments }) => segments,
+      (err) => this.hull.utils.log("Error in fetchAudiences", err)
+    );
   }
 }
