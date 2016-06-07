@@ -43,13 +43,13 @@ export function Server() {
   app.post("/batch", bodyParser.json(), fetchShip, (req, res) => {
     const { ship, client } = req.hull || {};
     const { audience } = req.query;
-    const fb = new MailchimpAgent(ship, client, req);
+    const mc = new MailchimpAgent(ship, client, req);
     if (ship && audience) {
-      fb.handleExtract(req.body, users => {
-        fb.addUsersToAudience(audience, users);
+      mc.handleExtract(req.body, users => {
+        mc.addUsersToAudience(audience, users);
       });
     }
-    res.end("thanks !");
+    res.end("ok");
   });
 
   app.get("/manifest.json", (req, res) => {
