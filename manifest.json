@@ -25,14 +25,14 @@
       "title": "API Key",
       "description": "Token or API Key",
       "type": "string",
-      "format": "format"
+      "format": "hidden"
     },
     {
       "name": "domain",
       "title": "API Domain",
       "description": "Mailchimp API Domain",
       "type": "string",
-      "format": "format"
+      "format": "hidden"
     },
     {
       "name": "segment_mapping",
