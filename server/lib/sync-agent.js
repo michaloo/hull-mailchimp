@@ -105,6 +105,8 @@ export default class SegmentSyncAgent {
    */
   shouldSyncSegment(segment) {
     const segmentIds = this.getPrivateSetting("synchronized_segments") || [];
+    //Sync all by default.
+    if (!segmentIds.length) { return true; }
     return _.includes(segmentIds, segment.id);
   }
 
