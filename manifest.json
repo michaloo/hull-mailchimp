@@ -10,27 +10,29 @@
     {
       "name": "synchronized_segments",
       "title": "Filtered Segments",
-      "description": "Only trigger if user matches at least one these segments (Empty to send everyone)",
+      "description": "Only sync users in at least one these segments (Empty to send everyone)",
       "type": "array",
       "format": "segment"
     },
     {
+      "name": "list_id",
+      "title": "Mailchimp List ID",
+      "description": "Create a list and find it's ID here: http://kb.mailchimp.com/lists/managing-subscribers/find-your-list-id",
+      "type": "string"
+    },
+    {
       "name": "api_key",
       "title": "API Key",
-      "description": "Token or API Key (click on the right to fill it in)",
-      "type": "string"
+      "description": "Token or API Key",
+      "type": "string",
+      "format": "format"
     },
     {
       "name": "domain",
       "title": "API Domain",
-      "description": "Mailchimp API Domain  (click on the right to fill it in)",
-      "type": "string"
-    },
-    {
-      "name": "list_id",
-      "title": "Mailchimp List ID",
-      "description": "Leave empty to create a new list named 'Hull'",
-      "type": "string"
+      "description": "Mailchimp API Domain",
+      "type": "string",
+      "format": "format"
     },
     {
       "name": "segment_mapping",
