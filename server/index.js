@@ -43,6 +43,7 @@ export function Server() {
   app.post("/batch", bodyParser.json(), fetchShip, (req, res) => {
     const { ship, client } = req.hull || {};
     const { audience } = req.query;
+    client.utils.log("Received Batch", audience);
     const mc = new MailchimpAgent(ship, client, req);
     if (ship && audience) {
       mc.handleExtract(req.body, users => {
