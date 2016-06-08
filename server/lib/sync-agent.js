@@ -257,7 +257,7 @@ export default class SegmentSyncAgent {
       audience: audience && audience.id
     });
     const url = URI(`https://${hostname}`)
-      .path("batch")
+      .path("sync")
       .search(search)
       .toString();
 
@@ -306,7 +306,7 @@ export default class SegmentSyncAgent {
       if (user) {
         users.push(user);
       }
-      if (users.length >= 100 || !user) {
+      if (users.length >= 500 || !user) {
         callback(users.splice(0));
       }
     };

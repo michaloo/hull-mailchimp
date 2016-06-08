@@ -1,3 +1,4 @@
+import _ from "lodash";
 import express from "express";
 import path from "path";
 import { NotifHandler } from "hull";
@@ -40,14 +41,41 @@ export function Server() {
 
   app.post("/notify", notifHandler);
 
-  app.post("/batch", bodyParser.json(), fetchShip, (req, res) => {
+  app.post("/sync", bodyParser.json(), fetchShip, (req, res) => {
     const { ship, client } = req.hull || {};
     const { audience } = req.query;
     client.utils.log("Received Batch", audience);
-    const mc = new MailchimpAgent(ship, client, req);
+    const agent = new MailchimpAgent(ship, client, req);
     if (ship && audience) {
-      mc.handleExtract(req.body, users => {
-        mc.addUsersToAudience(audience, users);
+      agent.handleExtract(req.body, users => {
+        agent.addUsersToAudience(audience, users);
+      });
+    }
+    res.end("thanks !");
+  });
+
+  app.post("/batch", bodyParser.json(), fetchShip, (req, res) => {
+    const { ship, client } = req.hull || {};
+    const agent = new MailchimpAgent(ship, client, req);
+    if (ship) {
+      agent.fetchAudiencesBySegmentId().then(audiences => {
+        agent.handleExtract(req.body, users => {
+          const usersByAudience = {};
+          users.map(user => {
+            return user.segment_ids.map(segmentId => {
+              const { audience } = audiences[segmentId] || {};
+              if (audience) {
+                usersByAudience[segmentId] = usersByAudience[segmentId] || [];
+                usersByAudience[segmentId].push(user);
+              }
+              return user;
+            });
+          });
+          _.map(usersByAudience, (audienceUsers, segmentId) => {
+            const { audience } = audiences[segmentId];
+            return agent.addUsersToAudience(audience.id, audienceUsers);
+          });
+        });
       });
     }
     res.end("ok");
