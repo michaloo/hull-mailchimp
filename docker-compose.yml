@@ -1,0 +1,11 @@
+version: '2'
+services:
+    node-cli:
+        image: node
+        env_file: .env
+        command: bash
+        working_dir: /app
+        ports:
+            - "8082:8082"
+        volumes:
+            - .:/app
