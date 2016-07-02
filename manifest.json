@@ -17,8 +17,9 @@
     {
       "name": "list_id",
       "title": "Mailchimp List ID",
-      "description": "Create a list and find it's ID here: http://kb.mailchimp.com/lists/managing-subscribers/find-your-list-id",
-      "type": "string"
+      "description": "Mailchimp List ID selected by user",
+      "type": "string",
+      "format": "hidden"
     },
     {
       "name": "api_key",

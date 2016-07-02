@@ -6,7 +6,7 @@ import rp from "request-promise";
 
 export default function oauth({
   name, clientID, clientSecret,
-  callbackUrl, homeUrl,
+  callbackUrl, homeUrl, selectUrl,
   site, tokenPath, authorizationPath
   }) {
   const oauth2 = oauth2Factory({
@@ -24,13 +24,13 @@ export default function oauth({
     const redirect_uri = `https://${req.hostname}${req.baseUrl}${callbackUrl}?hullToken=${req.hull.hullToken}`;
     const viewData = {
       name,
-      url: oauth2.authCode.authorizeURL({ redirect_uri }),
-      list_url: `https://${domain}.admin.mailchimp.com/lists/members/`
+      url: oauth2.authCode.authorizeURL({ redirect_uri })
     };
     if (!apiKey) {
       return res.render("login.html", viewData);
     }
-    return res.render("admin.html", viewData);
+
+    return res.redirect(`${req.baseUrl}${selectUrl}?hullToken=${req.hull.hullToken}`);
   }
 
   function renderRedirect(req, res) {
@@ -63,7 +63,7 @@ export default function oauth({
           })
           .then(
             (b = {}) => hull.put(ship.id, {
-              private_settings: { ...ship.private_settings, domain: b.dc, api_key: message.access_token }
+              private_settings: { ...ship.private_settings, domain: b.dc, api_key: message.access_token, api_endpoint: b.api_endpoint }
             }),
             err => res.send(err)
           )
@@ -86,11 +86,48 @@ export default function oauth({
     }).then(saveToken, (err) => res.send(err));
   }
 
+  function renderSelect(req, res) {
+    const { ship = {}, } = req.hull;
+    const { domain, api_key: apiKey, list_id } = ship.private_settings || {};
+    const viewData = {
+      name,
+      form_action: `https://${req.hostname}${req.baseUrl}${selectUrl}?hullToken=${req.hull.hullToken}`,
+      list_id: list_id
+    }
+    rp({
+      uri: `https://${domain}.api.mailchimp.com/3.0/lists`,
+      qs: {
+        fields: 'lists.id,lists.name'
+      },
+      headers: { "Authorization": `OAuth ${apiKey}`, },
+      json: true
+    }).then((data) => {
+      viewData.mailchimp_lists = data.lists;
+
+      return res.render("admin.html", viewData);
+    });
+  }
+
+  function handleSelect(req, res) {
+    const { ship = {}, client: hull } = req.hull;
+
+    hull.put(ship.id, {
+      private_settings: { ...ship.private_settings, list_id: req.body.mailchimp_list }
+    }).then((data) => {
+      res.end('list_id saved, should redirect to sync all option');
+    });
+
+
+  }
+
   const router = Router();
   router.use(bodyParser.json());
   router.use(fetchShip);
   router.get(homeUrl, renderHome);
   router.get(callbackUrl, renderRedirect);
+  router.get(selectUrl, renderSelect);
+
+  router.post(selectUrl, bodyParser.urlencoded({ extended: true }), handleSelect);
 
   return router;
 }

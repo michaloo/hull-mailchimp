@@ -24,6 +24,7 @@ export function Server() {
     clientSecret: process.env.MAILCHIMP_CLIENT_SECRET,
     callbackUrl: "/callback",
     homeUrl: "/",
+    selectUrl: "/select",
     site: "https://login.mailchimp.com",
     tokenPath: "/oauth2/token",
     authorizationPath: "/oauth2/authorize"

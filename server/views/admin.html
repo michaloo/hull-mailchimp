@@ -17,9 +17,24 @@
             </div>
             <div class="media-body pt-1">
               <h4 class="m-0 text-muted">Connected to Mailchimp</h4>
-              <p>
-                <a href="<%=list_url%>" target="_blank"> View your lists</a>
-              </p>
+              <form action="<%=form_action%>" method="post">
+                <div class="row">
+                  <div class="col-md-10">
+                    <select class="form-control" name="mailchimp_list" placeholder="Pick Mailchimp List">
+                      <%for (var i = 0; i < mailchimp_lists.length; i++) {
+                        var mailchimp_list = mailchimp_lists[i];
+                         %>
+                      <option<% if (mailchimp_list.id == list_id) {-%> selected<%}-%> value="<%=mailchimp_list.id%>"><%=mailchimp_list.name%></option>
+                      <%}-%>
+                    </select>
+                  </div>
+                  <div class="col-md-2">
+                    <button class='btn btn-rounded btn-block btn-primary'>
+                      Select
+                    </button>
+                  </div>
+                </div>
+              </form>
             </div>
           </div>
         </div>
