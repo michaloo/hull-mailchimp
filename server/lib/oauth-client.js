@@ -88,14 +88,14 @@ export default function oauth({
 
   function renderSelect(req, res) {
     const { ship = {}, } = req.hull;
-    const { domain, api_key: apiKey, list_id } = ship.private_settings || {};
+    const { domain, api_key: apiKey, list_id, api_endpoint } = ship.private_settings || {};
     const viewData = {
       name,
       form_action: `https://${req.hostname}${req.baseUrl}${selectUrl}?hullToken=${req.hull.hullToken}`,
       list_id: list_id
     }
     rp({
-      uri: `https://${domain}.api.mailchimp.com/3.0/lists`,
+      uri: `${api_endpoint}/3.0/lists`,
       qs: {
         fields: 'lists.id,lists.name'
       },
