@@ -5,8 +5,10 @@ import Mailchimp from "mailchimp-api-v3";
 export default class MailchimpClient {
 
   constructor({ api_key, domain, list_id }) {
-    this.client = new Mailchimp(api_key);
-    this.client.__base_url = `https://${domain}.api.mailchimp.com/3.0`;
+
+    // the mailchimp-api-v3 library splits the api_key using dash and uses
+    // second part as a api datacenter
+    this.client = new Mailchimp(api_key + '-' + domain);
     this.list_id = list_id;
   }
 

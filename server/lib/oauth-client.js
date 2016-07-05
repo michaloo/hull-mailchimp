@@ -19,6 +19,7 @@ export default function oauth({
   });
 
   function renderHome(req, res) {
+
     const { ship = {}, } = req.hull;
     const { domain, api_key: apiKey } = ship.private_settings || {};
     const redirect_uri = `https://${req.hostname}${req.baseUrl}${callbackUrl}?hullToken=${req.hull.hullToken}`;
@@ -29,7 +30,6 @@ export default function oauth({
     if (!apiKey) {
       return res.render("login.html", viewData);
     }
-
     return res.redirect(`${req.baseUrl}${selectUrl}?hullToken=${req.hull.hullToken}`);
   }
 
@@ -87,7 +87,7 @@ export default function oauth({
   }
 
   function renderSelect(req, res) {
-    const { ship = {}, } = req.hull;
+    const { ship = {}, client: hull } = req.hull;
     const { domain, api_key: apiKey, list_id, api_endpoint } = ship.private_settings || {};
     const viewData = {
       name,
@@ -105,6 +105,20 @@ export default function oauth({
       viewData.mailchimp_lists = data.lists;
 
       return res.render("admin.html", viewData);
+    }, (err) => {
+
+      // if we got auth error let's clear api key and redirect to first step
+      // of the ship installation - this is the case when user deleted the api key
+      // for the ship mailchimp application and we need to ask for the permission
+      // once again
+      if (err.statusCode == 401) {
+        hull.put(ship.id, {
+          private_settings: { ...ship.private_settings, api_key: null }
+        }).then((data) => {
+          return res.redirect(`${req.baseUrl}${homeUrl}?hullToken=${req.hull.hullToken}`);
+        });
+      }
+
     });
   }
 
