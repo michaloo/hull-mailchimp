@@ -1,0 +1,84 @@
+<html>
+<head>
+  <title>Hull <%= name %></title>
+  <link rel="stylesheet" href="//dd04rofzygnm0.cloudfront.net/releases/master/865f04865d2448286626bac92c518a8f8ea8bafe/stylesheets/neue.css" />
+</head>
+<body>
+  <div class="row">
+    <div class="col-md-4 col-md-offset-4 col-sm-offset-2 col-sm-8 col-xs-offset-1 col-xs-10 mt-2 panel">
+      <div class="panel-body">
+        <div class="mb-1">
+          <h1 class="mb-0 mt-05  text-center"><i class="icon icon-hull" style="font-size:64px;"></i></h1>
+          <div class="mb-1 media">
+            <div class="media-left">
+              <div class="media-object pr-1 pt-05">
+                <div class="check valid"><i class="icon icon-valid"></i></div>
+              </div>
+            </div>
+            <div class="media-body pt-1">
+              <h4 class="m-0 text-muted">Connected to Mailchimp</h4>
+              <form action="<%=form_action%>" method="post">
+                <div class="row">
+                  <div class="col-md-10">
+                    The Mailchimp integration is set up correctly. Users are now sent to Mailchimp when they are updated. If you haven’t done it before or you want to reset everything, click the “Sync all users and segments” button below to empty and refill the list.
+Choose one or more Filtered Segments on the sidebar to limit synced users to a subset of your database.
+                  </div>
+                  <div class="col-md-2">
+                    <input type="button" class='btn btn-rounded btn-block btn-primary' data-toggle="modal" data-target="#myModal" value="Sync all users and segments">
+                  </div>
+                </div>
+                <!-- Modal -->
+                <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+                  <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title" id="myModalLabel">Modal title</h4>
+                      </div>
+                      <div class="modal-body">
+                        ...
+                      </div>
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                        <button class='btn btn-rounded btn-block btn-primary' data-toggle="modal" data-target="#myModal">
+                          Confirm
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <style type="text/css" media="screen">
+    .media{
+      width: 260px;
+      margin: 0 auto;
+    }
+    .check i.icon {
+      color: rgba(75, 222, 122, 0.52);
+      font-size: 2pc;
+      position: relative;
+      top: -11px;
+      left: 3px;
+    }
+    .check.valid {
+      border-color: rgba(75, 222, 122, 0.52);
+    }
+    .check {
+      border-radius: 100px;
+      border: 2px solid transparent;
+      padding: 0 5px;
+      height: 37px;
+      width: 37px;
+      position: relative;
+    }
+  </style>
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+  <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+</body>
+</html>

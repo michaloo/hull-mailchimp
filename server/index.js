@@ -25,6 +25,7 @@ export function Server() {
     callbackUrl: "/callback",
     homeUrl: "/",
     selectUrl: "/select",
+    syncUrl: "/sync",
     site: "https://login.mailchimp.com",
     tokenPath: "/oauth2/token",
     authorizationPath: "/oauth2/authorize"

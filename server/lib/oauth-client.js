@@ -6,7 +6,7 @@ import rp from "request-promise";
 
 export default function oauth({
   name, clientID, clientSecret,
-  callbackUrl, homeUrl, selectUrl,
+  callbackUrl, homeUrl, selectUrl, syncUrl,
   site, tokenPath, authorizationPath
   }) {
   const oauth2 = oauth2Factory({
@@ -128,10 +128,22 @@ export default function oauth({
     hull.put(ship.id, {
       private_settings: { ...ship.private_settings, list_id: req.body.mailchimp_list }
     }).then((data) => {
-      res.end('list_id saved, should redirect to sync all option');
+      return res.redirect(`${req.baseUrl}${syncUrl}?hullToken=${req.hull.hullToken}`);
     });
+  }
 
+  function renderSync(req, res) {
+    const { ship = {}, client: hull } = req.hull;
+    const { domain, api_key: apiKey, list_id, api_endpoint } = ship.private_settings || {};
+    const viewData = {
+      name,
+      form_action: `https://${req.hostname}${req.baseUrl}${syncUrl}?hullToken=${req.hull.hullToken}`,
+    }
+    return res.render("sync.html", viewData);
+  }
 
+  function handleSync(req, res) {
+    res.end('handleSync');
   }
 
   const router = Router();
@@ -140,8 +152,10 @@ export default function oauth({
   router.get(homeUrl, renderHome);
   router.get(callbackUrl, renderRedirect);
   router.get(selectUrl, renderSelect);
+  router.get(syncUrl, renderSync);
 
   router.post(selectUrl, bodyParser.urlencoded({ extended: true }), handleSelect);
+  router.post(syncUrl, handleSync);
 
   return router;
 }
