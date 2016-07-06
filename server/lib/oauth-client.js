@@ -3,6 +3,7 @@ import bodyParser from "body-parser";
 import fetchShip from "./middlewares/fetch-ship";
 import oauth2Factory from "simple-oauth2";
 import rp from "request-promise";
+import MailchimpAgent from "./mailchimp-agent";
 
 export default function oauth({
   name, clientID, clientSecret,
@@ -143,7 +144,23 @@ export default function oauth({
   }
 
   function handleSync(req, res) {
-    res.end('handleSync');
+    const { ship, client } = req.hull || {};
+    const agent = new MailchimpAgent(ship, client, req);
+
+    agent.removeAllUsers()
+    .then(agent.removeAllAudiences.bind(agent))
+    .then(agent.handleShipUpdate.bind(agent))
+    .then(agent.fetchSyncHullSegments.bind(agent))
+    .then(segments => {
+      return Promise.all(segments.map(segment => {
+        return agent.getAudienceForSegment(segment).then(audience => {
+          return agent.requestExtract({segment, audience});
+        });
+      }));
+    }).then(promiseRes => {
+      res.end('handleSync');
+    });
+
   }
 
   const router = Router();

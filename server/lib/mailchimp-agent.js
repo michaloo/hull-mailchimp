@@ -114,6 +114,77 @@ export default class MailchimpList extends SyncAgent {
     return this.request(batch);
   }
 
+  /**
+   * Downloads all Mailchimp members list
+   * @return {Promise}
+   */
+  fetchUsers() {
+    const listId = this.getClient().list_id;
+    const MailchimpClient = this.getClient().client;
+    return MailchimpClient.batch({
+      method : 'get',
+      path : `/lists/${listId}/members`,
+      query : {
+        count  : 10000000000,
+      }
+    });
+  }
+
+  /**
+   * Queries for all Mailchimp memebers and deletes them
+   * @return {Promise}
+   */
+  removeAllUsers() {
+    const listId = this.getClient().list_id;
+    const MailchimpClient = this.getClient().client;
+    return this.fetchUsers().then(res => {
+      const calls = res.members.map(member => {
+        const hash = getEmailHash(member.email_address);
+        return {
+          method : 'delete',
+          path : `/lists/${listId}/members/${hash}`
+        }
+      });
+      return MailchimpClient.batch(calls, {
+        wait : true,
+        interval : 2000,
+        unpack : false,
+      });
+
+    })
+  }
+
+  /**
+   * Queries for All Mailchimp audiences and deletes them
+   * @return {Promise}
+   */
+  removeAllAudiences() {
+    const listId = this.getClient().list_id;
+    const MailchimpClient = this.getClient().client;
+    return MailchimpClient.batch({
+        method : 'get',
+        path : `/lists/${listId}/segments`,
+        query : {
+          count: 10000000000,
+          type: 'static'
+        }
+    }).then(res => {
+      const calls = res.segments.map(segment => {
+        return {
+          method : 'delete',
+          path : `/lists/${listId}/segments/${segment.id}`
+        }
+      });
+
+      return MailchimpClient.batch(calls, {
+        wait : true,
+        interval : 2000,
+        unpack : false,
+      });
+
+    });
+  }
+
   addUsersToAudience(audienceId, users = []) {
     const usersToAdd = users.filter(u => !_.isEmpty(u.email));
     return this.ensureUsersSubscribed(usersToAdd)

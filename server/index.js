@@ -63,7 +63,9 @@ export function Server() {
       agent.fetchAudiencesBySegmentId().then(audiences => {
         agent.handleExtract(req.body, users => {
           const usersByAudience = {};
-          users.map(user => {
+          var filteredUsers = users.filter(agent.shouldSyncUser.bind(agent));
+
+          filteredUsers.map(user => {
             return user.segment_ids.map(segmentId => {
               const { audience } = audiences[segmentId] || {};
               if (audience) {

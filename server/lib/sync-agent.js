@@ -97,17 +97,19 @@ export default class SegmentSyncAgent {
     return _.every(keys, k => !_.isEmpty(vals[k]));
   }
 
-
   /**
-   * Check if the segment if included in the synchronized_segments list.
-   * @param  {Oject} segment - A segment
+   * Check if user is one of the segments selected in ship configuration.
+   * If there is no segment filter always return true.
+   *
+   * @param  {Object} user - user to check
    * @return {Boolean}
    */
-  shouldSyncSegment(segment) {
+  shouldSyncUser(user) {
     const segmentIds = this.getPrivateSetting("synchronized_segments") || [];
-    //Sync all by default.
-    if (!segmentIds.length) { return true; }
-    return _.includes(segmentIds, segment.id);
+    if (segmentIds.length == 0) {
+      return true;
+    }
+    return _.intersection(segmentIds, user.segment_ids).length > 0;
   }
 
   /**
@@ -153,7 +155,7 @@ export default class SegmentSyncAgent {
    * @return {undefined}
    */
   handleShipUpdate() {
-    this.getAudiencesBySegmentId().then((segments = {}) => {
+    return this.getAudiencesBySegmentId().then((segments = {}) => {
       return Promise.all(_.map(segments, item => {
         return item.audience || this.createAudience(item.segment);
       }));
@@ -187,7 +189,7 @@ export default class SegmentSyncAgent {
    * @return {undefined}
    */
   handleUserEnteredSegment(user, segment) {
-    return this.shouldSyncSegment(segment) &&
+    return this.shouldSyncUser(user) &&
       this.getOrCreateAudienceForSegment(segment).then(audience =>
         audience && this.addUsersToAudience(audience.id, [user])
       );
@@ -202,7 +204,7 @@ export default class SegmentSyncAgent {
    * @return {undefined}
    */
   handleUserLeftSegment(user, segment) {
-    return this.shouldSyncSegment(segment) &&
+    return this.shouldSyncUser(user) &&
       this.getOrCreateAudienceForSegment(segment).then(audience => {
         return audience && this.removeUsersFromAudience(audience.id, [user]);
       });
@@ -216,7 +218,7 @@ export default class SegmentSyncAgent {
    * @return {undefined}
    */
   handleSegmentUpdate(segment) {
-    return this.shouldSyncSegment(segment) &&
+    return this.shouldSyncUser(user) &&
       this.getOrCreateAudienceForSegment(segment);
   }
 
@@ -263,10 +265,10 @@ export default class SegmentSyncAgent {
 
     const fields = this._getExtractFields();
 
-    return this.hull.get(segment.id).then(({ query }) => {
-      const params = { query, format, url, fields };
-      return this.hull.post("extract/user_reports", params);
-    });
+    const query = segment.query;
+
+    const params = { query, format, url, fields };
+    return this.hull.post("extract/user_reports", params);
   }
 
 
@@ -323,7 +325,10 @@ export default class SegmentSyncAgent {
    * @return {Promise -> Array<audience>}
    */
   getAudiencesBySegmentId() {
-    return this._audiences || this.fetchAudiencesBySegmentId().then(audiences => {
+    if (this._audiences) {
+      return Promise.resolve(this._audiences)
+    }
+    return this.fetchAudiencesBySegmentId().then(audiences => {
       this._audiences = audiences;
       return audiences;
     });
@@ -334,9 +339,14 @@ export default class SegmentSyncAgent {
    * @return {Promise -> Array<segment>}
    */
   fetchHullSegments() {
-    return this.hull.get("segments", { limit: 500 }).then(
-      segments => segments.filter(this.shouldSyncSegment.bind(this))
-    );
+    return this.hull.get("segments", { limit: 500 });
+  }
+
+  fetchSyncHullSegments() {
+    const segmentIds = this.getPrivateSetting("synchronized_segments") || [];
+    return this.hull.get('segments', { where: {
+      id: { $in: segmentIds }
+    }});
   }
 
   fetchAudiencesBySegmentId() {
