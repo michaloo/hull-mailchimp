@@ -9,3 +9,12 @@ services:
             - "8082:8082"
         volumes:
             - .:/app
+    watch:
+        image: node
+        env_file: .env
+        command: npm run watch
+        working_dir: /app
+        ports:
+            - "8082:8082"
+        volumes:
+            - .:/app

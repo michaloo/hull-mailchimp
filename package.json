@@ -6,7 +6,8 @@
   "scripts": {
     "lint": "eslint src",
     "start": "./bin/start",
-    "test": "NODE_ENV=test mocha -R spec ./tests/index"
+    "test": "NODE_ENV=test mocha -R spec ./tests/index",
+    "watch": "./node_modules/.bin/babel-watch -L main.js"
   },
   "engines": {
     "node": "5.x",
@@ -55,10 +56,11 @@
   },
   "devDependencies": {
     "babel-eslint": "^6.0.4",
+    "babel-watch": "^2.0.2",
     "eslint": "^2.9.0",
     "eslint-config-airbnb-base": "^3.0.1",
-    "supertest": "^1.2.0",
+    "eslint-plugin-import": "^1.8.0",
     "mocha": "^2.5.2",
-    "eslint-plugin-import": "^1.8.0"
+    "supertest": "^1.2.0"
   }
 }
