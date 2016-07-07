@@ -4,10 +4,10 @@
   "description": "Hull Mailchimp integration",
   "main": "index.js",
   "scripts": {
-    "lint": "eslint src",
+    "lint": "eslint .",
     "start": "./bin/start",
     "test": "NODE_ENV=test mocha -R spec ./tests/index",
-    "watch": "./node_modules/.bin/babel-watch -L main.js"
+    "watch": "babel-watch -L main.js"
   },
   "engines": {
     "node": "5.x",

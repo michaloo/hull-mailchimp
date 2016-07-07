@@ -120,12 +120,12 @@ export default class MailchimpList extends SyncAgent {
    */
   fetchUsers() {
     const listId = this.getClient().list_id;
-    const MailchimpClient = this.getClient().client;
-    return MailchimpClient.batch({
-      method : 'get',
-      path : `/lists/${listId}/members`,
-      query : {
-        count  : 10000000000,
+    const rawClient = this.getClient().client;
+    return rawClient.batch({
+      method: "get",
+      path: `/lists/${listId}/members`,
+      query: {
+        count: 10000000000,
       }
     });
   }
@@ -136,22 +136,21 @@ export default class MailchimpList extends SyncAgent {
    */
   removeAllUsers() {
     const listId = this.getClient().list_id;
-    const MailchimpClient = this.getClient().client;
+    const rawClient = this.getClient().client;
     return this.fetchUsers().then(res => {
       const calls = res.members.map(member => {
         const hash = getEmailHash(member.email_address);
         return {
-          method : 'delete',
-          path : `/lists/${listId}/members/${hash}`
-        }
+          method: "delete",
+          path: `/lists/${listId}/members/${hash}`
+        };
       });
-      return MailchimpClient.batch(calls, {
-        wait : true,
-        interval : 2000,
-        unpack : false,
+      return rawClient.batch(calls, {
+        wait: true,
+        interval: 2000,
+        unpack: false,
       });
-
-    })
+    });
   }
 
   /**
@@ -160,28 +159,27 @@ export default class MailchimpList extends SyncAgent {
    */
   removeAllAudiences() {
     const listId = this.getClient().list_id;
-    const MailchimpClient = this.getClient().client;
-    return MailchimpClient.batch({
-        method : 'get',
-        path : `/lists/${listId}/segments`,
-        query : {
-          count: 10000000000,
-          type: 'static'
-        }
+    const rawClient = this.getClient().client;
+    return rawClient.batch({
+      method: "get",
+      path: `/lists/${listId}/segments`,
+      query: {
+        count: 10000000000,
+        type: "static"
+      }
     }).then(res => {
       const calls = res.segments.map(segment => {
         return {
-          method : 'delete',
-          path : `/lists/${listId}/segments/${segment.id}`
-        }
+          method: "delete",
+          path: `/lists/${listId}/segments/${segment.id}`
+        };
       });
 
-      return MailchimpClient.batch(calls, {
-        wait : true,
-        interval : 2000,
-        unpack : false,
+      return rawClient.batch(calls, {
+        wait: true,
+        interval: 2000,
+        unpack: false,
       });
-
     });
   }
 

@@ -106,7 +106,7 @@ export default class SegmentSyncAgent {
    */
   shouldSyncUser(user) {
     const segmentIds = this.getPrivateSetting("synchronized_segments") || [];
-    if (segmentIds.length == 0) {
+    if (segmentIds.length === 0) {
       return true;
     }
     return _.intersection(segmentIds, user.segment_ids).length > 0;
@@ -218,8 +218,7 @@ export default class SegmentSyncAgent {
    * @return {undefined}
    */
   handleSegmentUpdate(segment) {
-    return this.shouldSyncUser(user) &&
-      this.getOrCreateAudienceForSegment(segment);
+    return this.getOrCreateAudienceForSegment(segment);
   }
 
   /**
@@ -326,7 +325,7 @@ export default class SegmentSyncAgent {
    */
   getAudiencesBySegmentId() {
     if (this._audiences) {
-      return Promise.resolve(this._audiences)
+      return Promise.resolve(this._audiences);
     }
     return this.fetchAudiencesBySegmentId().then(audiences => {
       this._audiences = audiences;
@@ -344,9 +343,9 @@ export default class SegmentSyncAgent {
 
   fetchSyncHullSegments() {
     const segmentIds = this.getPrivateSetting("synchronized_segments") || [];
-    return this.hull.get('segments', { where: {
+    return this.hull.get("segments", { where: {
       id: { $in: segmentIds }
-    }});
+    } });
   }
 
   fetchAudiencesBySegmentId() {
