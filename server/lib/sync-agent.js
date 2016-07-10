@@ -152,7 +152,7 @@ export default class SegmentSyncAgent {
    * Handler for `ship:update` notification.
    * Ensures that synchronized_audiences
    * defined in the ship's settings exist
-   * @return {undefined}
+   * @return {Promise}
    */
   handleShipUpdate() {
     return this.getAudiencesBySegmentId().then((segments = {}) => {
@@ -182,7 +182,7 @@ export default class SegmentSyncAgent {
 
   /**
    * The user just entered the segment
-   * Check if the segment if included in the synchronized_segments list.
+   * Check if the user belongs to any segment in the synchronized_segments list.
    * Ensure that the audience exists then add the user to the mapped audience
    * @param  {Object} user - A user
    * @param  {Object} segment - A segment
@@ -197,7 +197,7 @@ export default class SegmentSyncAgent {
 
   /**
    * The user just left the segment.
-   * Check if the segment if included in the synchronized_segments list.
+   * Check if the user belongs to any segment in the synchronized_segments list.
    * Ensure that the audience exists then remove the user to the mapped audience
    * @param  {Object} user - A user
    * @param  {Object} segment - A segment
@@ -212,8 +212,7 @@ export default class SegmentSyncAgent {
 
   /**
    * Handler for `segment:update` notification.
-   * Check if the segment if included in the synchronized_segments list,
-   * then ensure that the audience exists.
+   * Ensure that the audience exists.
    * @param  {Object} segment - A segment
    * @return {undefined}
    */
@@ -320,7 +319,8 @@ export default class SegmentSyncAgent {
 
 
   /**
-   * Gets memoized list of audiences indexed by segmentId
+   * Gets memoized list of audiences indexed by segmentId.
+   * It is basically a memory caching proxy for fetchAudiencesBySegmentId method.
    * @return {Promise -> Array<audience>}
    */
   getAudiencesBySegmentId() {
@@ -334,13 +334,18 @@ export default class SegmentSyncAgent {
   }
 
   /**
-   * Fetch hull segments that are synchronized as Audiences
+   * Fetch all Hull segments.
    * @return {Promise -> Array<segment>}
    */
   fetchHullSegments() {
     return this.hull.get("segments", { limit: 500 });
   }
 
+  /**
+   * Fetch only these Hull segments which are included in "synchronized_segments"
+   * ship setting.
+   * @return {Promise -> Array<segment>}
+   */
   fetchSyncHullSegments() {
     const segmentIds = this.getPrivateSetting("synchronized_segments") || [];
     return this.hull.get("segments", { where: {
@@ -348,6 +353,11 @@ export default class SegmentSyncAgent {
     } });
   }
 
+  /**
+   * Downloads all Hull Segments and all Audiences and then maps them
+   * together and returns it grouped by Hull Segments ids.
+   * @return {Promise -> Array}
+   */
   fetchAudiencesBySegmentId() {
     const mapping = this.getPrivateSetting("segment_mapping") || {};
     return Promise.all([

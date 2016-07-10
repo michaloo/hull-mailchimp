@@ -7,6 +7,7 @@ import { renderFile } from "ejs";
 import bodyParser from "body-parser";
 import fetchShip from "./lib/middlewares/fetch-ship";
 import MailchimpAgent from "./lib/mailchimp-agent";
+import MailchimpClient from "./lib/mailchimp-client";
 
 import oauth from "./lib/oauth-client";
 
@@ -34,10 +35,10 @@ export function Server() {
   const notifHandler = NotifHandler({
     groupTraits: false,
     events: {
-      "users_segment:update": MailchimpAgent.handle("handleSegmentUpdate"),
-      "users_segment:delete": MailchimpAgent.handle("handleSegmentDelete"),
-      "user_report:update": MailchimpAgent.handle("handleUserUpdate"),
-      "ship:update": MailchimpAgent.handle("handleShipUpdate"),
+      "users_segment:update": MailchimpAgent.handle("handleSegmentUpdate", MailchimpClient),
+      "users_segment:delete": MailchimpAgent.handle("handleSegmentDelete", MailchimpClient),
+      "user_report:update": MailchimpAgent.handle("handleUserUpdate", MailchimpClient),
+      "ship:update": MailchimpAgent.handle("handleShipUpdate", MailchimpClient),
     }
   });
 
@@ -47,7 +48,7 @@ export function Server() {
     const { ship, client } = req.hull || {};
     const { audience } = req.query;
     client.utils.log("Received Batch", audience);
-    const agent = new MailchimpAgent(ship, client, req);
+    const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
     if (ship && audience) {
       agent.handleExtract(req.body, users => {
         agent.addUsersToAudience(audience, users);
@@ -58,9 +59,9 @@ export function Server() {
 
   app.post("/batch", bodyParser.json(), fetchShip, (req, res) => {
     const { ship, client } = req.hull || {};
-    const agent = new MailchimpAgent(ship, client, req);
+    const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
     if (ship) {
-      agent.fetchAudiencesBySegmentId().then(audiences => {
+      agent.getAudiencesBySegmentId().then(audiences => {
         agent.handleExtract(req.body, users => {
           const usersByAudience = {};
           const filteredUsers = users.filter(agent.shouldSyncUser.bind(agent));

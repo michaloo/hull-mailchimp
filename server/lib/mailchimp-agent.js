@@ -2,7 +2,6 @@ import Promise from "bluebird";
 import _ from "lodash";
 import crypto from "crypto";
 import SyncAgent from "./sync-agent";
-import MailchimpClient from "./mailchimp-client";
 
 const MC_KEYS = [
   "stats.avg_open_rate",
@@ -23,9 +22,14 @@ function getEmailHash(email) {
 
 export default class MailchimpList extends SyncAgent {
 
-  static handle(method) {
+  constructor(ship, hull, req, MailchimpClientClass) {
+    super(ship, hull, req);
+    this.MailchimpClientClass = MailchimpClientClass;
+  }
+
+  static handle(method, MailchimpClientClass) {
     return ({ message }, { hull, ship, req }) => {
-      const handler = new MailchimpList(ship, hull, req);
+      const handler = new MailchimpList(ship, hull, req, MailchimpClientClass);
       if (!handler.isConfigured()) {
         const error = new Error("Missing credentials");
         error.status = 403;
@@ -131,58 +135,34 @@ export default class MailchimpList extends SyncAgent {
   }
 
   /**
-   * Queries for all Mailchimp memebers and deletes them
+   * Deletes all mapped Mailchimp Segments
    * @return {Promise}
    */
-  removeAllUsers() {
+  removeAudiences() {
     const listId = this.getClient().list_id;
     const rawClient = this.getClient().client;
-    return this.fetchUsers().then(res => {
-      const calls = res.members.map(member => {
-        const hash = getEmailHash(member.email_address);
-        return {
-          method: "delete",
-          path: `/lists/${listId}/members/${hash}`
-        };
-      });
-      return rawClient.batch(calls, {
-        wait: true,
-        interval: 2000,
-        unpack: false,
-      });
+    const mapping = this.getPrivateSetting("segment_mapping") || {};
+
+    const calls = Object.keys(mapping).map(segment => {
+      const mailchimpId = mapping[segment];
+      return {
+        method: "delete",
+        path: `/lists/${listId}/segments/${mailchimpId}`
+      };
+    });
+
+    return rawClient.batch(calls, {
+      wait: true,
+      interval: 2000,
+      unpack: false,
     });
   }
 
   /**
-   * Queries for All Mailchimp audiences and deletes them
-   * @return {Promise}
+   * [addUsersToAudience description]
+   * @param {[type]} audienceId [description]
+   * @param {[type]} users      =             [] [description]
    */
-  removeAllAudiences() {
-    const listId = this.getClient().list_id;
-    const rawClient = this.getClient().client;
-    return rawClient.batch({
-      method: "get",
-      path: `/lists/${listId}/segments`,
-      query: {
-        count: 10000000000,
-        type: "static"
-      }
-    }).then(res => {
-      const calls = res.segments.map(segment => {
-        return {
-          method: "delete",
-          path: `/lists/${listId}/segments/${segment.id}`
-        };
-      });
-
-      return rawClient.batch(calls, {
-        wait: true,
-        interval: 2000,
-        unpack: false,
-      });
-    });
-  }
-
   addUsersToAudience(audienceId, users = []) {
     const usersToAdd = users.filter(u => !_.isEmpty(u.email));
     return this.ensureUsersSubscribed(usersToAdd)
@@ -277,7 +257,7 @@ export default class MailchimpList extends SyncAgent {
 
   getClient() {
     if (!this._client) {
-      this._client = new MailchimpClient(this.getCredentials());
+      this._client = new this.MailchimpClientClass(this.getCredentials());
     }
     return this._client;
   }

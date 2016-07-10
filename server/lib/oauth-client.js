@@ -4,6 +4,7 @@ import fetchShip from "./middlewares/fetch-ship";
 import oauth2Factory from "simple-oauth2";
 import rp from "request-promise";
 import MailchimpAgent from "./mailchimp-agent";
+import MailchimpClient from "./mailchimp-client";
 
 export default function oauth({
   name, clientID, clientSecret,
@@ -111,6 +112,7 @@ export default function oauth({
       // for the ship mailchimp application and we need to ask for the permission
       // once again
       if (err.statusCode === 401) {
+        hull.utils.log('Mailchimp /lists query returned 401 - ApiKey is invalid');
         hull.put(ship.id, {
           private_settings: { ...ship.private_settings, api_key: null }
         }).then(() => {
@@ -138,12 +140,17 @@ export default function oauth({
     return res.render("sync.html", viewData);
   }
 
+  /**
+   * Sync all operation. It drops all
+   * @param  {[type]} req [description]
+   * @param  {[type]} res [description]
+   * @return {[type]}     [description]
+   */
   function handleSync(req, res) {
     const { ship, client } = req.hull || {};
-    const agent = new MailchimpAgent(ship, client, req);
+    const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
 
-    agent.removeAllUsers()
-    .then(agent.removeAllAudiences.bind(agent))
+    agent.removeAudiences()
     .then(agent.handleShipUpdate.bind(agent))
     .then(agent.fetchSyncHullSegments.bind(agent))
     .then(segments => {
