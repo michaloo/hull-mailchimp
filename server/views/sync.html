@@ -2,6 +2,8 @@
 <head>
   <title>Hull <%= name %></title>
   <link rel="stylesheet" href="//dd04rofzygnm0.cloudfront.net/releases/master/865f04865d2448286626bac92c518a8f8ea8bafe/stylesheets/neue.css" />
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/sweetalert/1.1.3/sweetalert.min.css" />
+  <link rel="stylesheet" href="/auth.css" />
 </head>
 <body>
   <div class="row">
@@ -17,37 +19,14 @@
             </div>
             <div class="media-body pt-1">
               <h4 class="m-0 text-muted">Connected to Mailchimp</h4>
-              <form action="<%=form_action%>" method="post">
-                <div class="row">
-                  <div class="col-md-10">
-                    The Mailchimp integration is set up correctly. Users are now sent to Mailchimp when they are updated. If you haven’t done it before or you want to reset everything, click the “Sync all users and segments” button below to empty and refill the list.
+              <p class="mb-1">
+                The Mailchimp integration is set up correctly. Users are now sent to Mailchimp when they are updated. If you haven’t done it before or you want to reset everything, click the “Sync all users and segments” button below to empty and refill the list.
 Choose one or more Filtered Segments on the sidebar to limit synced users to a subset of your database.
-                  </div>
-                  <div class="col-md-2">
-                    <input type="button" class='btn btn-rounded btn-block btn-primary' data-toggle="modal" data-target="#myModal" value="Sync all users and segments">
-                  </div>
-                </div>
-                <!-- Modal -->
-                <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
-                  <div class="modal-dialog" role="document">
-                    <div class="modal-content">
-                      <div class="modal-header">
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                        <h4 class="modal-title" id="myModalLabel">Modal title</h4>
-                      </div>
-                      <div class="modal-body">
-                        ...
-                      </div>
-                      <div class="modal-footer">
-                        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                        <button class='btn btn-rounded btn-block btn-primary' data-toggle="modal" data-target="#myModal">
-                          Confirm
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </form>
+              </p>
+              <button class='mb-1 btn btn-block btn-primary'
+                data-action="<%=form_action%>"
+                data-confirm="<%=list_name%>">Sync all users and segments</button>
+              <a href="<%=select_url%>">Return to Mailchimp List selection</a>
             </div>
           </div>
         </div>
@@ -55,30 +34,33 @@ Choose one or more Filtered Segments on the sidebar to limit synced users to a s
     </div>
   </div>
   <style type="text/css" media="screen">
-    .media{
-      width: 260px;
-      margin: 0 auto;
-    }
-    .check i.icon {
-      color: rgba(75, 222, 122, 0.52);
-      font-size: 2pc;
-      position: relative;
-      top: -11px;
-      left: 3px;
-    }
-    .check.valid {
-      border-color: rgba(75, 222, 122, 0.52);
-    }
-    .check {
-      border-radius: 100px;
-      border: 2px solid transparent;
-      padding: 0 5px;
-      height: 37px;
-      width: 37px;
-      position: relative;
-    }
   </style>
   <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
-  <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+  <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/sweetalert/1.1.3/sweetalert.min.js"></script>
+  <script>
+    $(function() {
+
+      $("[data-confirm]").click(function() {
+        var listName = $(this).attr('data-confirm');
+        var actionUrl = $(this).attr('data-action');
+        swal({
+          title: "Sync all users and segments",
+          text: "You are going to resync Mailchimp with Hull. This will empty the list you picked ("
+            + listName + "). This can generate a lot of traffic. Are you sure?",
+          type: "warning",
+          showCancelButton: true,
+          confirmButtonColor: "#DD6B55",
+          confirmButtonText: "Yes, sync it!",
+          closeOnConfirm: false
+        }, function(isConfirm) {
+          if (isConfirm) {
+            $.post(actionUrl);
+            swal("Sync started", "The Mailchimp list ("
+            + listName + ") will be synced shortly.", "success");
+          }
+        });
+      });
+    });
+  </script>
 </body>
 </html>

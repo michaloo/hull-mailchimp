@@ -251,7 +251,7 @@ export default class SegmentSyncAgent {
    * @param  {Object} segment - A segment
    * @param  {Object} audience - An audience
    * @param  {String} format - csv or json
-   * @return {undefined}
+   * @return {Promise}
    */
   requestExtract({ segment, audience, format = "csv" }) {
     const { hostname } = this.req;
@@ -266,10 +266,16 @@ export default class SegmentSyncAgent {
 
     const fields = this._getExtractFields();
 
-    const query = segment.query;
-
-    const params = { query, format, url, fields };
-    return this.hull.post("extract/user_reports", params);
+    return (() => {
+      if (segment.query) {
+        return Promise.resolve(segment);
+      }
+      return this.hull.get(segment.id);
+    })()
+    .then(({ query }) => {
+      const params = { query, format, url, fields };
+      return this.hull.post("extract/user_reports", params);
+    });
   }
 
 

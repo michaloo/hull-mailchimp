@@ -31,7 +31,7 @@ export default function oauth({
     if (!apiKey) {
       return res.render("login.html", viewData);
     }
-    return res.redirect(`${req.baseUrl}${selectUrl}?hullToken=${req.hull.hullToken}`);
+    return res.redirect(`${req.baseUrl}${syncUrl}?hullToken=${req.hull.hullToken}`);
   }
 
   function renderRedirect(req, res) {
@@ -133,11 +133,27 @@ export default function oauth({
   }
 
   function renderSync(req, res) {
-    const viewData = {
-      name,
-      form_action: `https://${req.hostname}${req.baseUrl}${syncUrl}?hullToken=${req.hull.hullToken}`,
-    };
-    return res.render("sync.html", viewData);
+    const { ship = {} } = req.hull;
+    const { api_key: apiKey, list_id, api_endpoint } = ship.private_settings || {};
+    rp({
+      uri: `${api_endpoint}/3.0/lists/${list_id}`,
+      qs: {
+        fields: "id,name"
+      },
+      headers: { Authorization: `OAuth ${apiKey}`, },
+      json: true
+    }).then((data) => {
+      console.log(`${api_endpoint}/3.0/lists/${list_id}`, data);
+      const viewData = {
+        name,
+        select_url: `https://${req.hostname}${req.baseUrl}${selectUrl}?hullToken=${req.hull.hullToken}`,
+        form_action: `https://${req.hostname}${req.baseUrl}${syncUrl}?hullToken=${req.hull.hullToken}`,
+        list_name: data.name
+      };
+      return res.render("sync.html", viewData);
+    });
+
+
   }
 
   /**
@@ -161,7 +177,7 @@ export default function oauth({
       }));
     })
     .then(() => {
-      res.end("handleSync");
+      res.end("ok");
     });
   }
 
