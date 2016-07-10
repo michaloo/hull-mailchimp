@@ -112,7 +112,7 @@ export default function oauth({
       // for the ship mailchimp application and we need to ask for the permission
       // once again
       if (err.statusCode === 401) {
-        hull.utils.log('Mailchimp /lists query returned 401 - ApiKey is invalid');
+        hull.utils.log("Mailchimp /lists query returned 401 - ApiKey is invalid");
         hull.put(ship.id, {
           private_settings: { ...ship.private_settings, api_key: null }
         }).then(() => {
@@ -152,15 +152,12 @@ export default function oauth({
       };
       return res.render("sync.html", viewData);
     });
-
-
   }
 
   /**
-   * Sync all operation. It drops all
-   * @param  {[type]} req [description]
-   * @param  {[type]} res [description]
-   * @return {[type]}     [description]
+   * Sync all operation handler. It drops all Mailchimp Segments aka Audiences
+   * Creates them according to `segment_mapping` settings and triggers
+   * sync of all selected segments.
    */
   function handleSync(req, res) {
     const { ship, client } = req.hull || {};

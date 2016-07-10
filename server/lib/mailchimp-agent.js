@@ -159,9 +159,10 @@ export default class MailchimpList extends SyncAgent {
   }
 
   /**
-   * [addUsersToAudience description]
-   * @param {[type]} audienceId [description]
-   * @param {[type]} users      =             [] [description]
+   * Ensures that all provided users are subscribed to Mailchimp,
+   * then adds them to selected audience and updates Hull traits.
+   * @param {Int} audienceId
+   * @return {Promise}
    */
   addUsersToAudience(audienceId, users = []) {
     const usersToAdd = users.filter(u => !_.isEmpty(u.email));
@@ -188,7 +189,7 @@ export default class MailchimpList extends SyncAgent {
    * Ensure users are subscribed to the list
    * before trying to add them to the audience
    * @param  {Array} users
-   * @return {[type]}       [description]
+   * @return {Promise}
    */
   ensureUsersSubscribed(users = []) {
     const subscribedUsers = users.filter(
