@@ -227,11 +227,14 @@ export default class SegmentSyncAgent {
    * @return {undefined}
    */
   handleSegmentDelete(segment) {
-    return this.getAudienceForSegment(segment).then(
-      (audience) => {
-        return audience && this.deleteAudience(audience.id, segment.id);
-      }
-    ).catch(err => console.warn("error deleting audience: ", err));
+    // since the deleted segment is not returned by Hull `/segments` API endpoint
+    // we cannot use fetchAudiencesBySegmentId method, we need to use saved
+    // segments to audiences mapping
+    const mapping = this.getPrivateSetting("segment_mapping") || {};
+    const audienceId = mapping[segment.id] || null;
+
+    return audienceId && this.deleteAudience(audienceId, segment.id)
+    .catch(err => console.warn("error deleting audience: ", err));
   }
 
   _getExtractFields() {

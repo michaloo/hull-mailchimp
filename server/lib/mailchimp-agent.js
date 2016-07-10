@@ -184,8 +184,12 @@ export default class MailchimpList extends SyncAgent {
     }, (err) => this.hull.utils.log("Error in addUsersToAudience", err));
   }
 
-  // Ensure users are subscribed to the list
-  // before trying to add them to the audience
+  /**
+   * Ensure users are subscribed to the list
+   * before trying to add them to the audience
+   * @param  {Array} users
+   * @return {[type]}       [description]
+   */
   ensureUsersSubscribed(users = []) {
     const subscribedUsers = users.filter(
       user => !_.isEmpty(user["traits_mailchimp/unique_email_id"])
