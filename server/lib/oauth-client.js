@@ -20,9 +20,26 @@ export default function oauth({
     }
   });
 
+  /**
+   * If we got auth error let's clear api key and redirect to first step
+   * of the ship installation - this is the case when user deleted the api key
+   * for the ship mailchimp application and we need to ask for the permission
+   * once again
+   */
+  function mailchimpErrorHandler(req, res, ship, hull, err) {
+    if (err.statusCode === 401) {
+      hull.utils.log("Mailchimp /lists query returned 401 - ApiKey is invalid");
+      hull.put(ship.id, {
+        private_settings: { ...ship.private_settings, api_key: null, mailchimp_list: null }
+      }).then(() => {
+        return res.redirect(`${req.baseUrl}${homeUrl}?hullToken=${req.hull.hullToken}`);
+      });
+    }
+  }
+
   function renderHome(req, res) {
     const { ship = {}, } = req.hull;
-    const { api_key: apiKey } = ship.private_settings || {};
+    const { api_key: apiKey, mailchimp_list: mailchimpList } = ship.private_settings || {};
     const redirect_uri = `https://${req.hostname}${req.baseUrl}${callbackUrl}?hullToken=${req.hull.hullToken}`;
     const viewData = {
       name,
@@ -31,6 +48,11 @@ export default function oauth({
     if (!apiKey) {
       return res.render("login.html", viewData);
     }
+
+    if (!mailchimpList) {
+      return res.redirect(`${req.baseUrl}${selectUrl}?hullToken=${req.hull.hullToken}`);
+    }
+
     return res.redirect(`${req.baseUrl}${syncUrl}?hullToken=${req.hull.hullToken}`);
   }
 
@@ -89,11 +111,11 @@ export default function oauth({
 
   function renderSelect(req, res) {
     const { ship = {}, client: hull } = req.hull;
-    const { api_key: apiKey, list_id, api_endpoint } = ship.private_settings || {};
+    const { api_key: apiKey, mailchimp_list = {}, api_endpoint } = ship.private_settings || {};
     const viewData = {
       name,
       form_action: `https://${req.hostname}${req.baseUrl}${selectUrl}?hullToken=${req.hull.hullToken}`,
-      list_id
+      mailchimp_list
     };
     rp({
       uri: `${api_endpoint}/3.0/lists`,
@@ -104,37 +126,15 @@ export default function oauth({
       json: true
     }).then((data) => {
       viewData.mailchimp_lists = data.lists;
-
+      console.log(viewData);
       return res.render("admin.html", viewData);
-    }, (err) => {
-      // if we got auth error let's clear api key and redirect to first step
-      // of the ship installation - this is the case when user deleted the api key
-      // for the ship mailchimp application and we need to ask for the permission
-      // once again
-      if (err.statusCode === 401) {
-        hull.utils.log("Mailchimp /lists query returned 401 - ApiKey is invalid");
-        hull.put(ship.id, {
-          private_settings: { ...ship.private_settings, api_key: null }
-        }).then(() => {
-          return res.redirect(`${req.baseUrl}${homeUrl}?hullToken=${req.hull.hullToken}`);
-        });
-      }
-    });
+    }, mailchimpErrorHandler.bind(this, res, res, ship, hull));
   }
 
   function handleSelect(req, res) {
     const { ship = {}, client: hull } = req.hull;
-
-    hull.put(ship.id, {
-      private_settings: { ...ship.private_settings, list_id: req.body.mailchimp_list }
-    }).then(() => {
-      return res.redirect(`${req.baseUrl}${syncUrl}?hullToken=${req.hull.hullToken}`);
-    });
-  }
-
-  function renderSync(req, res) {
-    const { ship = {} } = req.hull;
-    const { api_key: apiKey, list_id, api_endpoint } = ship.private_settings || {};
+    const { api_key: apiKey, api_endpoint } = ship.private_settings || {};
+    const list_id = req.body.mailchimp_list;
     rp({
       uri: `${api_endpoint}/3.0/lists/${list_id}`,
       qs: {
@@ -143,21 +143,30 @@ export default function oauth({
       headers: { Authorization: `OAuth ${apiKey}`, },
       json: true
     }).then((data) => {
-      console.log(`${api_endpoint}/3.0/lists/${list_id}`, data);
-      const viewData = {
-        name,
-        select_url: `https://${req.hostname}${req.baseUrl}${selectUrl}?hullToken=${req.hull.hullToken}`,
-        form_action: `https://${req.hostname}${req.baseUrl}${syncUrl}?hullToken=${req.hull.hullToken}`,
-        list_name: data.name
-      };
-      return res.render("sync.html", viewData);
-    });
+      return hull.put(ship.id, {
+        private_settings: { ...ship.private_settings, mailchimp_list: data }
+      }).then(() => {
+        return res.redirect(`${req.baseUrl}${syncUrl}?hullToken=${req.hull.hullToken}`);
+      });
+    }, mailchimpErrorHandler.bind(this, res, req, ship, hull));
+  }
+
+  function renderSync(req, res) {
+    const { ship = {} } = req.hull;
+    const { mailchimp_list } = ship.private_settings || {};
+    const viewData = {
+      name,
+      select_url: `https://${req.hostname}${req.baseUrl}${selectUrl}?hullToken=${req.hull.hullToken}`,
+      form_action: `https://${req.hostname}${req.baseUrl}${syncUrl}?hullToken=${req.hull.hullToken}`,
+      mailchimp_list
+    };
+    return res.render("sync.html", viewData);
   }
 
   /**
    * Sync all operation handler. It drops all Mailchimp Segments aka Audiences
-   * Creates them according to `segment_mapping` settings and triggers
-   * sync of all selected segments.
+   * then creates them according to `segment_mapping` settings and triggers
+   * sync for all selected segments.
    */
   function handleSync(req, res) {
     const { ship, client } = req.hull || {};

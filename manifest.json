@@ -15,16 +15,33 @@
       "format": "segment"
     },
     {
-      "name": "list_id",
-      "title": "Mailchimp List ID",
-      "description": "Mailchimp List ID selected by user",
-      "type": "string",
-      "format": "hidden"
+      "name": "mailchimp_list",
+      "title": "Mailchimp List object",
+      "description": "Mailchimp List object selected by user",
+      "type": "object",
+      "format": "hidden",
+      "properties": {
+        "id": {
+          "title": "Mailchimp List ID",
+          "type": "string"
+        },
+        "name": {
+          "title": "Mailchimp List name",
+          "type": "string"
+        }
+      }
     },
     {
       "name": "api_key",
       "title": "API Key",
       "description": "Token or API Key",
+      "type": "string",
+      "format": "hidden"
+    },
+    {
+      "name": "api_endpoint",
+      "title": "API Endpoint",
+      "description": "Mailchimp API endpoint",
       "type": "string",
       "format": "hidden"
     },

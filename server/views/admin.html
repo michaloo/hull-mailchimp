@@ -24,9 +24,9 @@
                   <div class="col-sm-9">
                     <select class="form-control" name="mailchimp_list" placeholder="Pick Mailchimp List">
                       <%for (var i = 0; i < mailchimp_lists.length; i++) {
-                        var mailchimp_list = mailchimp_lists[i];
+                        var ml = mailchimp_lists[i];
                          %>
-                      <option<% if (mailchimp_list.id == list_id) {-%> selected<%}-%> value="<%=mailchimp_list.id%>"><%=mailchimp_list.name%></option>
+                      <option<% if (mailchimp_list && ml.id === mailchimp_list.id) {-%> selected<%}-%> value="<%=ml.id%>"><%=ml.name%></option>
                       <%}-%>
                     </select>
                   </div>

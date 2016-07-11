@@ -4,7 +4,7 @@ import Hull from "hull";
 const shipToken = process.env.SHIP_TOKEN || "3095jv02939jfd";
 
 export default function (options) {
-  var _cache = [];
+  const _cache = [];
 
   function getCurrentShip(shipId, client, forceUpdate) {
     if (options.useCache) {

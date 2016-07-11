@@ -4,11 +4,14 @@ import Mailchimp from "mailchimp-api-v3";
 
 export default class MailchimpClient {
 
-  constructor({ api_key, domain, list_id }) {
+  constructor({ api_key, domain, mailchimp_list = {} }) {
     // the mailchimp-api-v3 library splits the api_key using dash and uses
     // second part as a api datacenter
     this.client = new Mailchimp(`${api_key}-${domain}`);
-    this.list_id = list_id;
+    if (!mailchimp_list.id) {
+      throw new Error("No mailchimp list set");
+    }
+    this.list_id = mailchimp_list.id;
   }
 
   // Mailchimp API request
