@@ -31,7 +31,7 @@ export default class MailchimpList extends SyncAgent {
     return ({ message }, { hull, ship, req }) => {
       const handler = new MailchimpList(ship, hull, req, MailchimpClientClass);
       if (!handler.isConfigured()) {
-        const error = new Error("Missing credentials");
+        const error = new Error("Ship not configured properly. Missing credentials");
         error.status = 403;
         return Promise.reject(error);
       }
