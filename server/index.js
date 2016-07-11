@@ -47,8 +47,13 @@ export function Server() {
   app.post("/sync", bodyParser.json(), fetchShip, (req, res) => {
     const { ship, client } = req.hull || {};
     const { audience } = req.query;
-    client.utils.log("Received Batch", audience);
+    client.utils.log("request.sync", audience);
     const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
+
+    if (!agent.isConfigured()) {
+      return res.status(500).send('Ship is not configured properly');
+    }
+
     if (ship && audience) {
       agent.handleExtract(req.body, users => {
         agent.addUsersToAudience(audience, users);
@@ -61,6 +66,12 @@ export function Server() {
     const { ship, client } = req.hull || {};
     const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
     if (ship) {
+
+      client.utils.log('request.batch');
+      if (!agent.isConfigured()) {
+        return res.status(500).send('Ship is not configured properly');
+      }
+
       agent.getAudiencesBySegmentId().then(audiences => {
         agent.handleExtract(req.body, users => {
           const usersByAudience = {};

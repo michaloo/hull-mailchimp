@@ -126,7 +126,6 @@ export default function oauth({
       json: true
     }).then((data) => {
       viewData.mailchimp_lists = data.lists;
-      console.log(viewData);
       return res.render("admin.html", viewData);
     }, mailchimpErrorHandler.bind(this, res, res, ship, hull));
   }
