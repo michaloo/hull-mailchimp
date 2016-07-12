@@ -30,7 +30,7 @@ export default function oauth({
     if (err.statusCode === 401) {
       hull.utils.log("Mailchimp /lists query returned 401 - ApiKey is invalid");
       hull.put(ship.id, {
-        private_settings: { ...ship.private_settings, api_key: null, mailchimp_list: null }
+        private_settings: { ...ship.private_settings, api_key: null, mailchimp_list_id: null }
       }).then(() => {
         return res.redirect(`${req.baseUrl}${homeUrl}?hullToken=${req.hull.hullToken}`);
       });
@@ -39,7 +39,7 @@ export default function oauth({
 
   function renderHome(req, res) {
     const { ship = {}, } = req.hull;
-    const { api_key: apiKey, mailchimp_list: mailchimpList } = ship.private_settings || {};
+    const { api_key: apiKey, mailchimp_list_id: mailchimpListId } = ship.private_settings || {};
     const redirect_uri = `https://${req.hostname}${req.baseUrl}${callbackUrl}?hullToken=${req.hull.hullToken}`;
     const viewData = {
       name,
@@ -49,7 +49,7 @@ export default function oauth({
       return res.render("login.html", viewData);
     }
 
-    if (!mailchimpList) {
+    if (!mailchimpListId) {
       return res.redirect(`${req.baseUrl}${selectUrl}?hullToken=${req.hull.hullToken}`);
     }
 
@@ -111,11 +111,11 @@ export default function oauth({
 
   function renderSelect(req, res) {
     const { ship = {}, client: hull } = req.hull;
-    const { api_key: apiKey, mailchimp_list = {}, api_endpoint } = ship.private_settings || {};
+    const { api_key: apiKey, mailchimp_list_id, api_endpoint } = ship.private_settings || {};
     const viewData = {
       name,
       form_action: `https://${req.hostname}${req.baseUrl}${selectUrl}?hullToken=${req.hull.hullToken}`,
-      mailchimp_list
+      mailchimp_list_id
     };
     rp({
       uri: `${api_endpoint}/3.0/lists`,
@@ -133,7 +133,7 @@ export default function oauth({
   function handleSelect(req, res) {
     const { ship = {}, client: hull } = req.hull;
     const { api_key: apiKey, api_endpoint } = ship.private_settings || {};
-    const list_id = req.body.mailchimp_list;
+    const list_id = req.body.mailchimp_list_id;
     rp({
       uri: `${api_endpoint}/3.0/lists/${list_id}`,
       qs: {
@@ -143,7 +143,7 @@ export default function oauth({
       json: true
     }).then((data) => {
       return hull.put(ship.id, {
-        private_settings: { ...ship.private_settings, mailchimp_list: data }
+        private_settings: { ...ship.private_settings, mailchimp_list_id: data.id, mailchimp_list_name: data.name }
       }).then(() => {
         return res.redirect(`${req.baseUrl}${syncUrl}?hullToken=${req.hull.hullToken}`);
       });
@@ -152,12 +152,12 @@ export default function oauth({
 
   function renderSync(req, res) {
     const { ship = {} } = req.hull;
-    const { mailchimp_list } = ship.private_settings || {};
+    const { mailchimp_list_name } = ship.private_settings || {};
     const viewData = {
       name,
       select_url: `https://${req.hostname}${req.baseUrl}${selectUrl}?hullToken=${req.hull.hullToken}`,
       form_action: `https://${req.hostname}${req.baseUrl}${syncUrl}?hullToken=${req.hull.hullToken}`,
-      mailchimp_list
+      mailchimp_list_name
     };
     return res.render("sync.html", viewData);
   }

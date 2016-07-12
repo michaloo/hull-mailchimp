@@ -69,7 +69,7 @@ export default class MailchimpList extends SyncAgent {
     return [
       "api_key",
       "domain",
-      "mailchimp_list"
+      "mailchimp_list_id"
     ];
   }
 

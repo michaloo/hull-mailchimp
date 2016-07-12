@@ -15,21 +15,18 @@
       "format": "segment"
     },
     {
-      "name": "mailchimp_list",
-      "title": "Mailchimp List object",
-      "description": "Mailchimp List object selected by user",
-      "type": "object",
-      "format": "hidden",
-      "properties": {
-        "id": {
-          "title": "Mailchimp List ID",
-          "type": "string"
-        },
-        "name": {
-          "title": "Mailchimp List name",
-          "type": "string"
-        }
-      }
+      "name": "mailchimp_list_id",
+      "title": "Mailchimp List ID",
+      "description": "Mailchimp List ID selected by user",
+      "type": "string",
+      "format": "hidden"
+    },
+    {
+      "name": "mailchimp_list_name",
+      "title": "Mailchimp List Name",
+      "description": "Mailchimp List Name selected by user",
+      "type": "string",
+      "format": "hidden"
     },
     {
       "name": "api_key",

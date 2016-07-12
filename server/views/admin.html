@@ -22,11 +22,11 @@
                 <h5 class="mb-1">Choose the list that will receive Hull users</h5>
                 <div class="row">
                   <div class="col-sm-9">
-                    <select class="form-control" name="mailchimp_list" placeholder="Pick Mailchimp List">
+                    <select class="form-control" name="mailchimp_list_id" placeholder="Pick Mailchimp List">
                       <%for (var i = 0; i < mailchimp_lists.length; i++) {
                         var ml = mailchimp_lists[i];
                          %>
-                      <option<% if (mailchimp_list && ml.id === mailchimp_list.id) {-%> selected<%}-%> value="<%=ml.id%>"><%=ml.name%></option>
+                      <option<% if (ml.id === mailchimp_list_id) {-%> selected<%}-%> value="<%=ml.id%>"><%=ml.name%></option>
                       <%}-%>
                     </select>
                   </div>
