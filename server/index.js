@@ -51,7 +51,7 @@ export function Server() {
     const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
 
     if (!agent.isConfigured()) {
-      return res.status(500).send('Ship is not configured properly');
+      return res.status(403).send('Ship is not configured properly');
     }
 
     if (ship && audience) {
@@ -69,7 +69,7 @@ export function Server() {
 
       client.utils.log('request.batch');
       if (!agent.isConfigured()) {
-        return res.status(500).send('Ship is not configured properly');
+        return res.status(403).send('Ship is not configured properly');
       }
 
       agent.getAudiencesBySegmentId().then(audiences => {
