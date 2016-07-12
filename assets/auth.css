@@ -19,3 +19,7 @@
   width: 37px;
   position: relative;
 }
+
+.btn {
+  white-space: normal;
+}
