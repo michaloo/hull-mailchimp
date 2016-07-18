@@ -18,6 +18,7 @@ describe("CampaignAgent", function CampaignAgentTest() {
           const agent = new CampaignAgent(MailchimpClientClass, client, ship.private_settings);
           return agent.getTrackableCampaigns()
             .then(agent.getEmailActivities.bind(agent))
+            .then(agent.getMemberActivities.bind(agent))
             .then(agent.trackEvents.bind(agent));
         })
         .then(res => console.log(res), err => console.error(err));

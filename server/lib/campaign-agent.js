@@ -1,5 +1,6 @@
 import Promise from "bluebird";
 import moment from "moment";
+import _ from "lodash";
 
 /**
  * CampaignAgent has methods to query Mailchimp for data relevant
@@ -35,7 +36,8 @@ export default class CampaignAgent {
   }
 
   /**
-   * Gets a flatten array of emails with their activites done in specified campaigns.
+   * Takes a list of campaigns to check, then downloads the emails activities
+   * and then flattens it to return one array for every campaign requested.
    * Returns only emails with some activities.
    * @param  {Array} campaigns
    * @return {Promise}
@@ -56,28 +58,98 @@ export default class CampaignAgent {
   }
 
   /**
-   * For every provided email and it's activity call Hull Track endpoint.
+   * This method takes information downloaded by getEmailActivities
+   * and use it to enrich members/activity endpoint data
    * @param  {Array} emails
+   * [{
+   *   campaign_id: "2c4a24e9df",
+   *   list_id: "319f54214b",
+   *   email_id: "039817b3448c634bfb35f33577e8b2b3",
+   *   email_address: "michaloo+4@gmail.com",
+   *   activity: [{
+   *     action: "bounce",
+   *     type: "hard",
+   *     timestamp: "2016-07-12T00:00:00+00:00"
+   *   }]
+   * }]
+   * @return {Promise}
+   * [{
+   *   email_id: "039817b3448c634bfb35f33577e8b2b3",
+   *   list_id: "319f54214b",
+   *   activity: [{
+   *     action: "sent",
+   *     timestamp: "2016-07-12T11:07:57+00:00",
+   *     type: "regular",
+   *     campaign_id: "6cfe5bf893",
+   *     title: "test123"
+   *   }]
+   * }]
+   */
+  getMemberActivities(emails) {
+    const queries = _.uniqWith(emails.map(e => {
+      return {
+        method: "get",
+        path: `/lists/${e.list_id}/members/${e.email_id}/activity`,
+      };
+    }), _.isEqual);
+
+    return this.client.client.batch(queries)
+      .then((results) => {
+        // this part is responsible for filling `getMemberActivities`
+        // data with more information from `getEmailActivities`
+        // namely the email_address and ip information of "open" action
+        emails.forEach(e => {
+          const member = _.find(results, { email_id: e.email_id });
+          member.email_address = e.email_address;
+
+          e.activity.forEach(a => {
+            const m = _.find(results, {
+              email_id: e.email_id,
+            });
+            if (m) {
+              const memberActivity = _.find(m.activity, {
+                timestamp: a.timestamp,
+                action: a.action
+              });
+
+              if (a.ip && !memberActivity.ip) {
+                memberActivity.ip = a.ip;
+              }
+            }
+          });
+        });
+
+        return results;
+      });
+  }
+
+  /**
+   * For every provided email and its activity call Hull Track endpoint.
+   * @param  {Array} emails
+   * [{
+   *   activity: [ [Object] ],
+   *   email_id: "039817b3448c634bfb35f33577e8b2b3",
+   *   list_id: "319f54214b",
+   *   email_address: "michaloo+4@gmail.com"
+   * }]
    * @return {Promise}
    */
   trackEvents(emails) {
     const emailTracks = emails.map(email => {
       const user = this.hull.as({ email: email.email_address });
 
-      const tracks = email.activity.map(a => {
+      return email.activity.map(a => {
         return user.track(a.action, {
-          // title: 3,
+          type: a.type || "",
+          title: a.title || "",
           timestamp: a.timestamp,
-          campaign_id: email.campaign_id,
-          ip: a.ip,
+          campaign_id: a.campaign_id,
         }, {
           source: "mailchimp",
           ip: a.ip,
           created_at: a.timestamp
         });
       });
-
-      return tracks;
     });
 
     return Promise.all([].concat.apply([], emailTracks));
