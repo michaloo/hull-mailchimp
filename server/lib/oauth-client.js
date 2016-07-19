@@ -171,15 +171,15 @@ export default function oauth({
     const { ship, client } = req.hull || {};
     const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
 
+    client.utils.log("Start sync all operation");
     agent.removeAudiences()
     .then(agent.handleShipUpdate.bind(agent))
     .then(agent.fetchSyncHullSegments.bind(agent))
-    .then(segments => {
-      return Promise.all(segments.map(segment => {
-        return agent.getAudienceForSegment(segment).then(audience => {
-          return agent.requestExtract({ segment, audience });
-        });
-      }));
+    .each(segment => {
+      return agent.getAudienceForSegment(segment).then(audience => {
+        client.utils.log("Request extract for segment", segment.name);
+        return agent.requestExtract({ segment, audience });
+      });
     })
     .then(() => {
       res.end("ok");

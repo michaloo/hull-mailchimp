@@ -29,6 +29,7 @@ export default class MailchimpList extends SyncAgent {
 
   static handle(method, MailchimpClientClass) {
     return ({ message }, { hull, ship, req }) => {
+      hull.utils.log("handling event", _.get(message,"events[0].event"));
       const handler = new MailchimpList(ship, hull, req, MailchimpClientClass);
       if (!handler.isConfigured()) {
         const error = new Error("Ship not configured properly. Missing credentials");
@@ -71,6 +72,17 @@ export default class MailchimpList extends SyncAgent {
       "domain",
       "mailchimp_list_id"
     ];
+  }
+
+  checkBatchQueue() {
+    const rawClient = this.getClient().client;
+
+    return rawClient.get({
+      path: "/batches",
+      query: {
+        count: 1
+      }
+    }).then(res => this.hull.utils.log("Queued Mailchimp Batches", res.total_items));
   }
 
   // Creates an audience (aka Mailchimp Segment)
@@ -150,11 +162,11 @@ export default class MailchimpList extends SyncAgent {
         path: `/lists/${listId}/segments/${mailchimpId}`
       };
     });
-
+    this.hull.utils.log("segment_mapping", mapping);
+    this.hull.utils.log("Remove Audiences", calls.length);
     return rawClient.batch(calls, {
-      wait: true,
-      interval: 2000,
-      unpack: false,
+      interval: 1000,
+      verbose: false
     });
   }
 
@@ -175,6 +187,7 @@ export default class MailchimpList extends SyncAgent {
           path: `segments/${audienceId}/members`
         };
       });
+      this.hull.utils.log("addUsersToAudience.usersToAdd", batch.length);
       return this.request(batch)
       .then(responses => {
         responses.map((mc, i) => {
@@ -221,6 +234,7 @@ export default class MailchimpList extends SyncAgent {
         };
       });
 
+    this.hull.utils.log("ensureUsersSubscribed.usersToSubscribe", batch.length);
     return this.request(batch).then((results) => {
       usersToSubscribe.map((user, i) => {
         const res = results[i];
@@ -240,6 +254,11 @@ export default class MailchimpList extends SyncAgent {
     }, (err) => this.hull.utils.log("Error in ensureUsersSubscribed", err));
   }
 
+  /**
+   * @param  {Object} user
+   * @param  {Object} mailchimpUser
+   * @return {Promise}
+   */
   updateUser(user, mailchimpUser) {
     // Build list of traits to update
     const traits = MC_KEYS.reduce((t, path) => {
@@ -268,7 +287,7 @@ export default class MailchimpList extends SyncAgent {
   }
 
   request(params) {
-    this.hull.utils.log("request", params);
+    this.hull.utils.log("mailchimp.request", params.length);
     return this.getClient().request(params);
   }
 

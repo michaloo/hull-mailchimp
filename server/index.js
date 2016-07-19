@@ -47,29 +47,32 @@ export function Server() {
   app.post("/sync", bodyParser.json(), fetchShip, (req, res) => {
     const { ship, client } = req.hull || {};
     const { audience } = req.query;
-    client.utils.log("request.sync", audience);
+    client.utils.log("request.sync.start", audience);
     const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
 
     if (!agent.isConfigured()) {
-      return res.status(403).send('Ship is not configured properly');
+      return res.status(403).send("Ship is not configured properly");
     }
 
     if (ship && audience) {
       agent.handleExtract(req.body, users => {
-        agent.addUsersToAudience(audience, users);
+        client.utils.log("request.sync.parseChunk", users.length);
+        return agent.addUsersToAudience(audience, users);
+      })
+      .then(() => {
+        client.utils.log("request.sync.end", audience);
+        res.end("thanks !");
       });
     }
-    res.end("thanks !");
   });
 
   app.post("/batch", bodyParser.json(), fetchShip, (req, res) => {
     const { ship, client } = req.hull || {};
     const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
     if (ship) {
-
-      client.utils.log('request.batch');
+      client.utils.log("request.batch");
       if (!agent.isConfigured()) {
-        return res.status(403).send('Ship is not configured properly');
+        return res.status(403).send("Ship is not configured properly");
       }
 
       agent.getAudiencesBySegmentId().then(audiences => {
@@ -87,10 +90,11 @@ export function Server() {
               return user;
             });
           });
-          _.map(usersByAudience, (audienceUsers, segmentId) => {
+
+          return Promise.all(_.map(usersByAudience, (audienceUsers, segmentId) => {
             const { audience } = audiences[segmentId];
             return agent.addUsersToAudience(audience.id, audienceUsers);
-          });
+          }));
         });
       });
     }

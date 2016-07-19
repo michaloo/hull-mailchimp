@@ -3,6 +3,8 @@ import URI from "urijs";
 import CSVStream from "csv-stream";
 import JSONStream from "JSONStream";
 import request from "request";
+import ps from "promise-streams";
+import BatchStream from "batch-stream";
 
 export default class SegmentSyncAgent {
 
@@ -155,6 +157,7 @@ export default class SegmentSyncAgent {
    * @return {Promise}
    */
   handleShipUpdate() {
+    this.hull.utils.log("handleShipUpdate");
     return this.getAudiencesBySegmentId().then((segments = {}) => {
       return Promise.all(_.map(segments, item => {
         return item.audience || this.createAudience(item.segment);
@@ -172,9 +175,11 @@ export default class SegmentSyncAgent {
    */
   handleUserUpdate({ user, changes = {}, segments = [] }) {
     if (_.isEmpty(user["traits_mailchimp/unique_email_id"])) {
+      this.hull.utils.log("User has empty unique_email_id trait");
       segments.map((segment) => this.handleUserEnteredSegment(user, segment));
     } else {
       const { entered = [], left = [] } = changes.segments || {};
+      this.hull.utils.log("User has unique_email_id trait", changes.segments);
       entered.map((segment) => this.handleUserEnteredSegment(user, segment));
       left.map((segment) => this.handleUserLeftSegment(user, segment));
     }
@@ -303,29 +308,20 @@ export default class SegmentSyncAgent {
    * @param  {String}
    * @param  {String}
    * @param  {Function}
-   * @return {undefined}
+   * @return {Promise}
    */
   handleExtract({ url, format }, callback) {
-    // FIXME > return trype invalid - either we're returniung a promise or a request stream.
     if (!url) return Promise.reject(new Error("Missing URL"));
-    const users = [];
     const decoder = format === "csv" ? CSVStream.createStream({ escapeChar: "\"", enclosedChar: "\"" }) : JSONStream.parse();
 
-    const flush = (user) => {
-      if (user) {
-        users.push(user);
-      }
-      if (users.length >= 500 || !user) {
-        callback(users.splice(0));
-      }
-    };
+    const batch = new BatchStream({ size: 500 });
 
     return request({ url })
       .pipe(decoder)
-      .on("data", flush)
-      .on("end", flush);
+      .pipe(batch)
+      .pipe(ps.map({ concurrent: 2 }, callback))
+      .wait();
   }
-
 
   /**
    * Gets memoized list of audiences indexed by segmentId.

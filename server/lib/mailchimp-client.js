@@ -38,7 +38,10 @@ export default class MailchimpClient {
           };
         });
         if (ops.length > 0) {
-          client.batch(ops, callback);
+          client.batch(ops, callback, {
+            interval: 2000,
+            verbose: false,
+          });
         } else {
           resolve([]);
         }
