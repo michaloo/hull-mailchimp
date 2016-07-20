@@ -87,17 +87,41 @@ export default class MailchimpList extends SyncAgent {
 
   // Creates an audience (aka Mailchimp Segment)
   createAudience(segment, extract = true) {
-    this._audiences = null;
-    this.request({
+    const listId = this.getClient().list_id;
+    const rawClient = this.getClient().client;
+    return rawClient.batch({
       path: "segments",
-      body: { name: segment.name, static_segment: [] },
-      method: "post"
-    }).then(audience => {
-      if (extract) this.requestExtract({ segment, audience });
-      return this.saveAudienceMapping(segment.id, audience.id).then(() => {
-        return Object.assign({ isNew: true }, audience);
-      });
-    }, (err) => this.hull.utils.log("Error in createAudience", err));
+      method: `/lists/${listId}/segments`,
+      query: {
+        count: 10000,
+        type: "static",
+      }
+    }).then((res) => {
+      const existingSegment = res.segments.filter(s => s.name == segment.name);
+
+      if (existingSegment.length > 0) {
+        return existingSegment.pop();
+      }
+
+      this._audiences = null;
+      return this.request({
+        path: "segments",
+        body: { name: segment.name, static_segment: [] },
+        method: "post"
+      }).then(audience => {
+        return (() => {
+          if (extract) {
+            return this.requestExtract({ segment, audience });
+          }
+          return Promise.resolve();
+        })()
+        .then(() => {
+          return this.saveAudienceMapping(segment.id, audience.id).then(() => {
+            return Object.assign({ isNew: true }, audience);
+          });
+        });
+      }, (err) => this.hull.utils.log("Error in createAudience", err));
+    });
   }
 
   // Deletes an audience (aka Mailchimp Segment)

@@ -15,8 +15,6 @@ export default class MailchimpClient {
   // params can be either an operation or an array of operations
   // Operation : { path, body, method }
   // If array of operations and length > 1 we automatically use Mailchimp's batch api
-
-
   request(params) {
     const { client, list_id } = this;
     return new Promise((resolve, reject) => {
