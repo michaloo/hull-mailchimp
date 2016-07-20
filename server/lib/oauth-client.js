@@ -34,18 +34,21 @@ export default function oauth({
       }).then(() => {
         return res.redirect(`${req.baseUrl}${homeUrl}?hullToken=${req.hull.hullToken}`);
       });
+    } else {
+      // TODO add an error page template to display uncaught errors
+      res.status(500).end(`Error: ${err.statusCode} -- ${err.message}`);
     }
   }
 
   function renderHome(req, res) {
     const { ship = {}, } = req.hull;
-    const { api_key: apiKey, mailchimp_list_id: mailchimpListId } = ship.private_settings || {};
+    const { api_key: apiKey, mailchimp_list_id: mailchimpListId, api_endpoint: apiEndpoint } = ship.private_settings || {};
     const redirect_uri = `https://${req.hostname}${req.baseUrl}${callbackUrl}?hullToken=${req.hull.hullToken}`;
     const viewData = {
       name,
       url: oauth2.authCode.authorizeURL({ redirect_uri })
     };
-    if (!apiKey) {
+    if (!apiKey || !apiEndpoint) {
       return res.render("login.html", viewData);
     }
 
