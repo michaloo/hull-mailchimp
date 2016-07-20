@@ -44,61 +44,27 @@ export function Server() {
 
   app.post("/notify", notifHandler);
 
-  app.post("/sync", bodyParser.json(), fetchShip, (req, res) => {
-    const { ship, client } = req.hull || {};
-    const { audience } = req.query;
-    client.utils.log("request.sync.start", audience);
-    const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
-
-    if (!agent.isConfigured()) {
-      return res.status(403).send("Ship is not configured properly");
-    }
-
-    if (ship && audience) {
-      agent.handleExtract(req.body, users => {
-        client.utils.log("request.sync.parseChunk", users.length);
-        return agent.addUsersToAudience(audience, users);
-      })
-      .then(() => {
-        client.utils.log("request.sync.end", audience);
-        res.end("thanks !");
-      });
-    }
-  });
-
   app.post("/batch", bodyParser.json(), fetchShip, (req, res) => {
     const { ship, client } = req.hull || {};
     const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
-    if (ship) {
-      client.utils.log("request.batch");
-      if (!agent.isConfigured()) {
-        return res.status(403).send("Ship is not configured properly");
-      }
-
-      agent.getAudiencesBySegmentId().then(audiences => {
-        agent.handleExtract(req.body, users => {
-          const usersByAudience = {};
-          const filteredUsers = users.filter(agent.shouldSyncUser.bind(agent));
-
-          filteredUsers.map(user => {
-            return user.segment_ids.map(segmentId => {
-              const { audience } = audiences[segmentId] || {};
-              if (audience) {
-                usersByAudience[segmentId] = usersByAudience[segmentId] || [];
-                usersByAudience[segmentId].push(user);
-              }
-              return user;
-            });
-          });
-
-          return Promise.all(_.map(usersByAudience, (audienceUsers, segmentId) => {
-            const { audience } = audiences[segmentId];
-            return agent.addUsersToAudience(audience.id, audienceUsers);
-          }));
-        });
-      });
+    if (!ship || !agent.isConfigured()) {
+      return res.status(403).send("Ship is not configured properly");
     }
-    res.end("ok");
+
+    client.utils.log("request.batch.start");
+    return agent.handleExtract(req.body, users => {
+      client.utils.log("request.batch.parseChunk", users.length);
+      const usersToUnsubscribe = _.reject(users, agent.shouldSyncUser.bind(agent));
+      const filteredUsers = users.filter(agent.shouldSyncUser.bind(agent));
+
+      return agent.addUsersToAudiences(filteredUsers)
+        .then(() => {
+          return agent.removeUsersFromAudiences(usersToUnsubscribe);
+        });
+    }).then(() => {
+      client.utils.log("request.batch.end");
+      res.end("ok");
+    });
   });
 
   app.get("/manifest.json", (req, res) => {

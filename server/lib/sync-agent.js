@@ -156,11 +156,11 @@ export default class SegmentSyncAgent {
    * defined in the ship's settings exist
    * @return {Promise}
    */
-  handleShipUpdate() {
+  handleShipUpdate(extract = true) {
     this.hull.utils.log("handleShipUpdate");
     return this.getAudiencesBySegmentId().then((segments = {}) => {
       return Promise.all(_.map(segments, item => {
-        return item.audience || this.createAudience(item.segment);
+        return item.audience || this.createAudience(item.segment, extract);
       }));
     });
   }
@@ -174,6 +174,7 @@ export default class SegmentSyncAgent {
    * @return {undefined}
    */
   handleUserUpdate({ user, changes = {}, segments = [] }) {
+    user.segment_ids = user.segment_ids || segments.map(s => s.id);
     if (_.isEmpty(user["traits_mailchimp/unique_email_id"])) {
       this.hull.utils.log("User has empty unique_email_id trait");
       segments.map((segment) => this.handleUserEnteredSegment(user, segment));
@@ -196,7 +197,7 @@ export default class SegmentSyncAgent {
   handleUserEnteredSegment(user, segment) {
     return this.shouldSyncUser(user) &&
       this.getOrCreateAudienceForSegment(segment).then(audience =>
-        audience && this.addUsersToAudience(audience.id, [user])
+        audience && this.addUsersToAudiences([user])
       );
   }
 
@@ -206,23 +207,32 @@ export default class SegmentSyncAgent {
    * Ensure that the audience exists then remove the user to the mapped audience
    * @param  {Object} user - A user
    * @param  {Object} segment - A segment
-   * @return {undefined}
+   * @return {Promise}
    */
   handleUserLeftSegment(user, segment) {
-    return this.shouldSyncUser(user) &&
-      this.getOrCreateAudienceForSegment(segment).then(audience => {
+    return this.getOrCreateAudienceForSegment(segment).then(audience => {
+      // the user is still within whitelisted segments
+      // remove him/her only from the audience which he left
+      if (this.shouldSyncUser(user)) {
         return audience && this.removeUsersFromAudience(audience.id, [user]);
-      });
+      }
+      // if he/she left the filtered segments remove it from all audiences
+      return audience && this.removeUsersFromAudiences([user]);
+    });
   }
 
   /**
    * Handler for `segment:update` notification.
-   * Ensure that the audience exists.
+   * Ensure that the audience exists and then triggers extract for that segment
+   * to make sure users are synced
    * @param  {Object} segment - A segment
-   * @return {undefined}
+   * @return {Promise}
    */
   handleSegmentUpdate(segment) {
-    return this.getOrCreateAudienceForSegment(segment);
+    return this.getOrCreateAudienceForSegment(segment)
+      .then(() => {
+        return this.requestExtract({ segment });
+      });
   }
 
   /**
@@ -254,24 +264,26 @@ export default class SegmentSyncAgent {
   /**
    * Start an extract job and be notified with the url when complete.
    * @param  {Object} segment - A segment
-   * @param  {Object} audience - An audience
    * @param  {String} format - csv or json
    * @return {Promise}
    */
-  requestExtract({ segment, audience, format = "csv" }) {
+  requestExtract({ segment = null, format = "json" }) {
     const { hostname } = this.req;
-    const search = Object.assign({}, (this.req.query || {}), {
-      segment: segment.id,
-      audience: audience && audience.id
-    });
+    const search = (this.req.query || {});
     const url = URI(`https://${hostname}`)
-      .path("sync")
+      .path("batch")
       .search(search)
       .toString();
 
     const fields = this._getExtractFields();
 
     return (() => {
+      if (segment == null) {
+        return Promise.resolve({
+          query: {}
+        });
+      }
+
       if (segment.query) {
         return Promise.resolve(segment);
       }
@@ -316,11 +328,11 @@ export default class SegmentSyncAgent {
 
     const batch = new BatchStream({ size: 500 });
 
-    return request({ url })
+    return ps.wait(request({ url })
       .pipe(decoder)
       .pipe(batch)
-      .pipe(ps.map({ concurrent: 2 }, callback))
-      .wait();
+      .pipe(ps.map({ concurrent: 1 }, callback))
+    );
   }
 
   /**
@@ -353,6 +365,9 @@ export default class SegmentSyncAgent {
    */
   fetchSyncHullSegments() {
     const segmentIds = this.getPrivateSetting("synchronized_segments") || [];
+    if (!segmentIds) {
+      return Promise.resolve([]);
+    }
     return this.hull.get("segments", { where: {
       id: { $in: segmentIds }
     } });
