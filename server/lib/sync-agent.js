@@ -360,7 +360,7 @@ export default class SegmentSyncAgent {
    */
   fetchSyncHullSegments() {
     const segmentIds = this.getPrivateSetting("synchronized_segments") || [];
-    this.hull.utils.log("fetchSyncHullSegments.segmentIds", segmentIds);
+    this.hull.logger.info("fetchSyncHullSegments.segmentIds", segmentIds);
     if (_.isEmpty(segmentIds)) {
       return Promise.resolve([]);
     }

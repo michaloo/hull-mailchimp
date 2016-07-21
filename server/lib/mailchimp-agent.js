@@ -89,7 +89,7 @@ export default class MailchimpList extends SyncAgent {
 
   // Creates an audience (aka Mailchimp Segment)
   createAudience(segment, extract = true) {
-    this.hull.utils.log("createAudience");
+    this.hull.logger.info("createAudience");
     const listId = this.getClient().list_id;
     const rawClient = this.getClient().client;
     return rawClient.request({
@@ -102,7 +102,7 @@ export default class MailchimpList extends SyncAgent {
       }
     }).then((res) => {
       const existingSegment = res.segments.filter(s => s.name === segment.name);
-      this.hull.utils.log("createAudience.existingSegment", existingSegment);
+      this.hull.logger.info("createAudience.existingSegment", existingSegment);
       if (existingSegment.length > 0) {
         return existingSegment.pop();
       }
@@ -224,7 +224,7 @@ export default class MailchimpList extends SyncAgent {
     const listId = this.getClient().list_id;
     const rawClient = this.getClient().client;
 
-    this.hull.utils.log("removeAudiences");
+    this.hull.logger.info("removeAudiences");
     return this.fetchAudiences()
       .map(segments => {
         return rawClient.request({
@@ -276,7 +276,7 @@ export default class MailchimpList extends SyncAgent {
             // Update user's mailchimp/* traits
             return this.updateUser(user, mc);
           } else {
-            this.hull.utils.log("addUsersToAudiences.userNotFound", mc.email_address);
+            this.hull.logger.info("addUsersToAudiences.userNotFound", mc.email_address);
           }
           return Promise.resolve();
         });
