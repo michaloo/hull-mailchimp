@@ -232,7 +232,7 @@ export default class MailchimpList extends SyncAgent {
           method: "delete",
           path: `/lists/${listId}/segments/${segment.id}`
         });
-      });
+      }, { concurrency: 3 });
   }
 
   /**
