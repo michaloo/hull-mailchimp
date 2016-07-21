@@ -385,7 +385,7 @@ export default class MailchimpList extends SyncAgent {
   fetchAudiences() {
     return this.request({
       path: "segments",
-      body: { type: "static", count: 250 }
+      query: { type: "static", count: 250 }
     })
     .then(
       ({ segments }) => segments,

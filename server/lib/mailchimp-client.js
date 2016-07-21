@@ -51,8 +51,8 @@ export default class MailchimpClient {
           operation = operation[0];
         }
         if (operation) {
-          const { body, method, path } = operation;
-          const op = { path: `/lists/${list_id}/${path}`, body, method };
+          const { body, query, method, path } = operation;
+          const op = { path: `/lists/${list_id}/${path}`, body, query, method };
           client.request(op, (err, res) => {
             if (microbatch) {
               callback(null, [err || res]);
