@@ -211,13 +211,7 @@ export default class SegmentSyncAgent {
    */
   handleUserLeftSegment(user, segment) {
     return this.getOrCreateAudienceForSegment(segment).then(audience => {
-      // the user is still within whitelisted segments
-      // remove him/her only from the audience which he left
-      if (this.shouldSyncUser(user)) {
-        return audience && this.removeUsersFromAudience(audience.id, [user]);
-      }
-      // if he/she left the filtered segments remove it from all audiences
-      return audience && this.removeUsersFromAudiences([user]);
+      return audience && this.removeUsersFromAudience(audience.id, [user]);
     });
   }
 
@@ -365,7 +359,7 @@ export default class SegmentSyncAgent {
    */
   fetchSyncHullSegments() {
     const segmentIds = this.getPrivateSetting("synchronized_segments") || [];
-    if (!segmentIds) {
+    if (_.isEmpty(segmentIds)) {
       return Promise.resolve([]);
     }
     return this.hull.get("segments", { where: {

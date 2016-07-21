@@ -176,6 +176,7 @@ export default function oauth({
     const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
 
     client.utils.log("Start sync all operation");
+    res.end("ok");
     agent.removeAudiences()
     .then(agent.handleShipUpdate.bind(agent, false))
     .then(agent.fetchSyncHullSegments.bind(agent))
@@ -187,9 +188,6 @@ export default function oauth({
       return Promise.map(segments, segment => {
         return agent.requestExtract({ segment });
       });
-    })
-    .then(() => {
-      res.end("ok");
     });
   }
 

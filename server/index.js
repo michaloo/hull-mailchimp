@@ -52,6 +52,7 @@ export function Server() {
     }
 
     client.utils.log("request.batch.start");
+    res.end("ok");
     return agent.handleExtract(req.body, users => {
       client.utils.log("request.batch.parseChunk", users.length);
       const filteredUsers = users.filter(agent.shouldSyncUser.bind(agent));
@@ -59,7 +60,6 @@ export function Server() {
       return agent.addUsersToAudiences(filteredUsers);
     }).then(() => {
       client.utils.log("request.batch.end");
-      res.end("ok");
     });
   });
 
