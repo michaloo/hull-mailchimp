@@ -15,15 +15,30 @@
       "format": "segment"
     },
     {
-      "name": "list_id",
+      "name": "mailchimp_list_id",
       "title": "Mailchimp List ID",
-      "description": "Create a list and find it's ID here: http://kb.mailchimp.com/lists/managing-subscribers/find-your-list-id",
-      "type": "string"
+      "description": "Mailchimp List ID selected by user",
+      "type": "string",
+      "format": "hidden"
+    },
+    {
+      "name": "mailchimp_list_name",
+      "title": "Mailchimp List Name",
+      "description": "Mailchimp List Name selected by user",
+      "type": "string",
+      "format": "hidden"
     },
     {
       "name": "api_key",
       "title": "API Key",
       "description": "Token or API Key",
+      "type": "string",
+      "format": "hidden"
+    },
+    {
+      "name": "api_endpoint",
+      "title": "API Endpoint",
+      "description": "Mailchimp API endpoint",
       "type": "string",
       "format": "hidden"
     },

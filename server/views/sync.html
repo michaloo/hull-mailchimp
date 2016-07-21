@@ -1,0 +1,68 @@
+<html>
+<head>
+  <title>Hull <%= name %></title>
+  <link rel="stylesheet" href="//dd04rofzygnm0.cloudfront.net/releases/master/865f04865d2448286626bac92c518a8f8ea8bafe/stylesheets/neue.css" />
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/sweetalert/1.1.3/sweetalert.min.css" />
+  <link rel="stylesheet" href="/auth.css" />
+</head>
+<body>
+  <div class="row">
+    <div class="col-md-4 col-md-offset-4 col-sm-offset-2 col-sm-8 col-xs-offset-1 col-xs-10 mt-2 panel">
+      <div class="panel-body">
+        <div class="mb-1">
+          <h1 class="mb-0 mt-05  text-center"><i class="icon icon-hull" style="font-size:64px;"></i></h1>
+          <div class="mb-1 media">
+            <div class="media-left">
+              <div class="media-object pr-1 pt-05">
+                <div class="check valid"><i class="icon icon-valid"></i></div>
+              </div>
+            </div>
+            <div class="media-body pt-1">
+              <h4 class="m-0 text-muted">Connected to Mailchimp</h4>
+              <p class="mb-1">
+                The Mailchimp integration is set up correctly. Users are now sent to Mailchimp when they are updated. If you haven’t done it before or you want to reset everything, click the “Sync all users and segments” button below to empty and refill the list.
+Choose one or more Filtered Segments on the sidebar to limit synced users to a subset of your database.
+              </p>
+              <button class='mb-1 btn btn-block btn-primary'
+                data-action="<%=form_action%>"
+                data-confirm="<%=mailchimp_list_name%>">Sync all users and segments</button>
+              <!-- link to list selection is disabled. Due to current implementation -->
+              <!-- it is not possible to change the mailchimp list -->
+              <!-- <a href="<%=select_url%>">Return to Mailchimp List selection</a> -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <style type="text/css" media="screen">
+  </style>
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+  <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/sweetalert/1.1.3/sweetalert.min.js"></script>
+  <script>
+    $(function() {
+
+      $("[data-confirm]").click(function() {
+        var listName = $(this).attr('data-confirm');
+        var actionUrl = $(this).attr('data-action');
+        swal({
+          title: "Sync all users and segments",
+          text: "You are going to resync Mailchimp with Hull. This will empty the list you picked ("
+            + listName + "). This can generate a lot of traffic. Are you sure?",
+          type: "warning",
+          showCancelButton: true,
+          confirmButtonColor: "#DD6B55",
+          confirmButtonText: "Yes, sync it!",
+          closeOnConfirm: false
+        }, function(isConfirm) {
+          if (isConfirm) {
+            $.post(actionUrl);
+            swal("Sync started", "The Mailchimp list ("
+            + listName + ") will be synced shortly.", "success");
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

@@ -2,6 +2,7 @@
 <head>
   <title>Hull <%= name %></title>
   <link rel="stylesheet" href="//dd04rofzygnm0.cloudfront.net/releases/master/865f04865d2448286626bac92c518a8f8ea8bafe/stylesheets/neue.css" />
+  <link rel="stylesheet" href="/auth.css" />
 </head>
 <body>
   <div class="row">
@@ -17,9 +18,25 @@
             </div>
             <div class="media-body pt-1">
               <h4 class="m-0 text-muted">Connected to Mailchimp</h4>
-              <p>
-                <a href="<%=list_url%>" target="_blank"> View your lists</a>
-              </p>
+              <form action="<%=form_action%>" method="post">
+                <h5 class="mb-1">Choose the list that will receive Hull users</h5>
+                <div class="row">
+                  <div class="col-sm-9">
+                    <select class="form-control" name="mailchimp_list_id" placeholder="Pick Mailchimp List">
+                      <%for (var i = 0; i < mailchimp_lists.length; i++) {
+                        var ml = mailchimp_lists[i];
+                         %>
+                      <option<% if (ml.id === mailchimp_list_id) {-%> selected<%}-%> value="<%=ml.id%>"><%=ml.name%></option>
+                      <%}-%>
+                    </select>
+                  </div>
+                  <div class="col-sm-3">
+                    <button class='btn btn-block btn-primary'>
+                      Select
+                    </button>
+                  </div>
+                </div>
+              </form>
             </div>
           </div>
         </div>
@@ -31,29 +48,5 @@
       window.location.reload();
   }
   </script>
-  <style type="text/css" media="screen">
-    .media{
-      width: 260px;
-      margin: 0 auto;
-    }
-    .check i.icon {
-      color: rgba(75, 222, 122, 0.52);
-      font-size: 2pc;
-      position: relative;
-      top: -11px;
-      left: 3px;
-    }
-    .check.valid {
-      border-color: rgba(75, 222, 122, 0.52);
-    }
-    .check {
-      border-radius: 100px;
-      border: 2px solid transparent;
-      padding: 0 5px;
-      height: 37px;
-      width: 37px;
-      position: relative;
-    }
-  </style>
 </body>
 </html>

@@ -2,7 +2,6 @@ import Promise from "bluebird";
 import _ from "lodash";
 import crypto from "crypto";
 import SyncAgent from "./sync-agent";
-import MailchimpClient from "./mailchimp-client";
 
 const MC_KEYS = [
   "stats.avg_open_rate",
@@ -23,11 +22,18 @@ function getEmailHash(email) {
 
 export default class MailchimpList extends SyncAgent {
 
-  static handle(method) {
-    return ({ message }, { hull, ship, req }) => {
-      const handler = new MailchimpList(ship, hull, req);
+  constructor(ship, hull, req, MailchimpClientClass) {
+    super(ship, hull, req);
+    this.MailchimpClientClass = MailchimpClientClass;
+  }
+
+  static handle(method, MailchimpClientClass) {
+    return (payload, { hull, ship, req }) => {
+      const message = payload.message;
+      hull.utils.log("handling event", _.get(payload, "subject"));
+      const handler = new MailchimpList(ship, hull, req, MailchimpClientClass);
       if (!handler.isConfigured()) {
-        const error = new Error("Missing credentials");
+        const error = new Error("Ship not configured properly. Missing credentials");
         error.status = 403;
         return Promise.reject(error);
       }
@@ -65,23 +71,58 @@ export default class MailchimpList extends SyncAgent {
     return [
       "api_key",
       "domain",
-      "list_id"
+      "mailchimp_list_id"
     ];
+  }
+
+  checkBatchQueue() {
+    const rawClient = this.getClient().client;
+
+    return rawClient.get({
+      path: "/batches",
+      query: {
+        count: 1
+      }
+    }).then(res => this.hull.utils.log("Queued Mailchimp Batches", res.total_items));
   }
 
   // Creates an audience (aka Mailchimp Segment)
   createAudience(segment, extract = true) {
-    this._audiences = null;
-    this.request({
-      path: "segments",
-      body: { name: segment.name, static_segment: [] },
-      method: "post"
-    }).then(audience => {
-      if (extract) this.requestExtract({ segment, audience });
-      return this.saveAudienceMapping(segment.id, audience.id).then(() => {
-        return Object.assign({ isNew: true }, audience);
-      });
-    }, (err) => this.hull.utils.log("Error in createAudience", err));
+    const listId = this.getClient().list_id;
+    const rawClient = this.getClient().client;
+    return rawClient.batch({
+      path: `/lists/${listId}/segments`,
+      method: "get",
+      query: {
+        count: 10000,
+        type: "static"
+      }
+    }, { verbose: false }).then((res) => {
+      const existingSegment = res.segments.filter(s => s.name === segment.name);
+
+      if (existingSegment.length > 0) {
+        return existingSegment.pop();
+      }
+
+      this._audiences = null;
+      return this.request({
+        path: "segments",
+        body: { name: segment.name, static_segment: [] },
+        method: "post"
+      }).then(audience => {
+        return (() => {
+          if (extract) {
+            return this.requestExtract({ segment, audience });
+          }
+          return Promise.resolve();
+        })()
+        .then(() => {
+          return this.saveAudienceMapping(segment.id, audience.id).then(() => {
+            return Object.assign({ isNew: true }, audience);
+          });
+        });
+      }, (err) => this.hull.utils.log("Error in createAudience", err));
+    });
   }
 
   // Deletes an audience (aka Mailchimp Segment)
@@ -99,8 +140,18 @@ export default class MailchimpList extends SyncAgent {
     }, (err) => this.hull.utils.log("Error in deleteAudience", err));
   }
 
+  /**
+   * Remove selected users from specified audience
+   * @param  {Integer} audienceId
+   * @param  {Array} users
+   * @return {Promise}
+   */
   removeUsersFromAudience(audienceId, users = []) {
-    const batch = users.reduce((ops, user) => {
+    const usersToRemove = users.filter(
+      u => !_.isEmpty(u.email) && !_.isEmpty(u["traits_mailchimp/unique_email_id"])
+    );
+    this.hull.utils.log("removeUsersFromAudience.usersToRemove", usersToRemove.length);
+    const batch = usersToRemove.reduce((ops, user) => {
       const { email } = user;
       const hash = getEmailHash(email);
       if (hash) {
@@ -114,29 +165,132 @@ export default class MailchimpList extends SyncAgent {
     return this.request(batch);
   }
 
-  addUsersToAudience(audienceId, users = []) {
-    const usersToAdd = users.filter(u => !_.isEmpty(u.email));
-    return this.ensureUsersSubscribed(usersToAdd)
-    .then(() => {
-      const batch = usersToAdd.map(user => {
-        return {
-          body: { email_address: user.email, status: "subscribed" },
-          method: "post",
-          path: `segments/${audienceId}/members`
-        };
+  /**
+   * Removes provided users from all audiences
+   * TODO - try to optimize the number of batched operations,
+   * right now it tries to remove users from all audiences, so the number
+   * of operation would be users * audiences
+   * @param  {Array} users
+   * @return {Promise}
+   */
+  removeUsersFromAudiences(users = []) {
+    const usersToRemove = users.filter(
+      u => !_.isEmpty(u.email) && !_.isEmpty(u["traits_mailchimp/unique_email_id"])
+    );
+    this.hull.utils.log("removeUsersFromAudiences.usersToRemove", usersToRemove.length);
+    return this.getAudiencesBySegmentId()
+      .then(audiences => {
+        const batch = usersToRemove.reduce((ops, user) => {
+          const { email } = user;
+          const hash = getEmailHash(email);
+          if (hash) {
+            _.map(audiences, ({ audience }) => {
+              ops.push({
+                method: "delete",
+                path: `segments/${audience.id}/members/${hash}`
+              });
+            });
+          }
+          return ops;
+        }, []);
+        return this.request(batch);
       });
-      return this.request(batch)
-      .then(responses => {
-        responses.map((mc, i) => {
-          // Update user's mailchimp/* traits
-          return this.updateUser(usersToAdd[i], mc);
-        });
-      });
-    }, (err) => this.hull.utils.log("Error in addUsersToAudience", err));
   }
 
-  // Ensure users are subscribed to the list
-  // before trying to add them to the audience
+  /**
+   * Downloads all Mailchimp members list
+   * @return {Promise}
+   */
+  fetchUsers() {
+    const listId = this.getClient().list_id;
+    const rawClient = this.getClient().client;
+    return rawClient.batch({
+      method: "get",
+      path: `/lists/${listId}/members`,
+      query: {
+        count: 10000000000,
+      }
+    });
+  }
+
+  /**
+   * Deletes all mapped Mailchimp Segments
+   * @return {Promise}
+   */
+  removeAudiences() {
+    const listId = this.getClient().list_id;
+    const rawClient = this.getClient().client;
+
+    return this.fetchAudiences()
+      .then(segments => {
+        const calls = segments.map(s => {
+          return {
+            method: "delete",
+            path: `/lists/${listId}/segments/${s.id}`
+          };
+        });
+
+        if (calls.length === 0) {
+          return Promise.resolve([]);
+        }
+
+        this.hull.utils.log("Remove Audiences", calls.length);
+        return rawClient.batch(calls, {
+          interval: 1000,
+          verbose: false
+        });
+      });
+  }
+
+  /**
+   * Ensures that all provided users are subscribed to Mailchimp,
+   * then adds them to selected audience and updates Hull traits.
+   * @param {Int} audienceId
+   * @return {Promise}
+   */
+  addUsersToAudiences(users = []) {
+    const usersToAdd = users.filter(u => !_.isEmpty(u.email));
+    this.hull.utils.log("addUsersToAudiences.usersToAdd", usersToAdd.length);
+
+    return this.ensureUsersSubscribed(usersToAdd)
+      .bind(this)
+      .then(this.getAudiencesBySegmentId)
+      .then(audiences => {
+        const batch = usersToAdd.reduce((ops, user) => {
+          user.segment_ids.map(segmentId => {
+            const { audience } = audiences[segmentId] || {};
+            return ops.push({
+              body: { email_address: user.email, status: "subscribed" },
+              method: "post",
+              path: `segments/${audience.id}/members`
+            });
+          });
+          return ops;
+        }, []);
+        this.hull.utils.log("addUsersToAudiences.ops", batch.length);
+        return batch;
+      })
+      .then(batch => {
+        if (batch.length === 0) {
+          return [];
+        }
+        return this.request(batch);
+      })
+      .then(responses => {
+        return _.uniqBy(responses, "email_address").map((mc) => {
+          const user = _.find(usersToAdd, { email: mc.email_address });
+          // Update user's mailchimp/* traits
+          return this.updateUser(user, mc);
+        });
+      });
+  }
+
+  /**
+   * Ensure users are subscribed to the list
+   * before trying to add them to the audience
+   * @param  {Array} users
+   * @return {Promise}
+   */
   ensureUsersSubscribed(users = []) {
     const subscribedUsers = users.filter(
       user => !_.isEmpty(user["traits_mailchimp/unique_email_id"])
@@ -167,6 +321,12 @@ export default class MailchimpList extends SyncAgent {
         };
       });
 
+    this.hull.utils.log("ensureUsersSubscribed.usersToSubscribe", batch.length);
+
+    if (batch.length === 0) {
+      return Promise.resolve(subscribedUsers);
+    }
+
     return this.request(batch).then((results) => {
       usersToSubscribe.map((user, i) => {
         const res = results[i];
@@ -186,13 +346,18 @@ export default class MailchimpList extends SyncAgent {
     }, (err) => this.hull.utils.log("Error in ensureUsersSubscribed", err));
   }
 
+  /**
+   * @param  {Object} user
+   * @param  {Object} mailchimpUser
+   * @return {Promise}
+   */
   updateUser(user, mailchimpUser) {
     // Build list of traits to update
     const traits = MC_KEYS.reduce((t, path) => {
       const key = _.last(path.split("."));
       const value = _.get(mailchimpUser, path);
       const prev = user[`traits_mailchimp/${key}`];
-      if (!_.isEmpty(value) && value != prev) {
+      if (!_.isEmpty(value) && value !== prev) {
         t[key] = value;
       }
       return t;
@@ -208,13 +373,13 @@ export default class MailchimpList extends SyncAgent {
 
   getClient() {
     if (!this._client) {
-      this._client = new MailchimpClient(this.getCredentials());
+      this._client = new this.MailchimpClientClass(this.getCredentials());
     }
     return this._client;
   }
 
   request(params) {
-    this.hull.utils.log("request", params);
+    this.hull.utils.log("mailchimp.request", params.length || _.get(params, "path"));
     return this.getClient().request(params);
   }
 

@@ -3,6 +3,8 @@ import URI from "urijs";
 import CSVStream from "csv-stream";
 import JSONStream from "JSONStream";
 import request from "request";
+import ps from "promise-streams";
+import BatchStream from "batch-stream";
 
 export default class SegmentSyncAgent {
 
@@ -97,17 +99,19 @@ export default class SegmentSyncAgent {
     return _.every(keys, k => !_.isEmpty(vals[k]));
   }
 
-
   /**
-   * Check if the segment if included in the synchronized_segments list.
-   * @param  {Oject} segment - A segment
+   * Check if user is one of the segments selected in ship configuration.
+   * If there is no segment filter always return true.
+   *
+   * @param  {Object} user - user to check
    * @return {Boolean}
    */
-  shouldSyncSegment(segment) {
+  shouldSyncUser(user) {
     const segmentIds = this.getPrivateSetting("synchronized_segments") || [];
-    //Sync all by default.
-    if (!segmentIds.length) { return true; }
-    return _.includes(segmentIds, segment.id);
+    if (segmentIds.length === 0) {
+      return true;
+    }
+    return _.intersection(segmentIds, user.segment_ids).length > 0;
   }
 
   /**
@@ -150,12 +154,13 @@ export default class SegmentSyncAgent {
    * Handler for `ship:update` notification.
    * Ensures that synchronized_audiences
    * defined in the ship's settings exist
-   * @return {undefined}
+   * @return {Promise}
    */
-  handleShipUpdate() {
-    this.getAudiencesBySegmentId().then((segments = {}) => {
+  handleShipUpdate(extract = true) {
+    this.hull.utils.log("handleShipUpdate");
+    return this.getAudiencesBySegmentId().then((segments = {}) => {
       return Promise.all(_.map(segments, item => {
-        return item.audience || this.createAudience(item.segment);
+        return item.audience || this.createAudience(item.segment, extract);
       }));
     });
   }
@@ -169,10 +174,13 @@ export default class SegmentSyncAgent {
    * @return {undefined}
    */
   handleUserUpdate({ user, changes = {}, segments = [] }) {
+    user.segment_ids = user.segment_ids || segments.map(s => s.id);
     if (_.isEmpty(user["traits_mailchimp/unique_email_id"])) {
+      this.hull.utils.log("User has empty unique_email_id trait");
       segments.map((segment) => this.handleUserEnteredSegment(user, segment));
     } else {
       const { entered = [], left = [] } = changes.segments || {};
+      this.hull.utils.log("User has unique_email_id trait", changes.segments);
       entered.map((segment) => this.handleUserEnteredSegment(user, segment));
       left.map((segment) => this.handleUserLeftSegment(user, segment));
     }
@@ -180,44 +188,51 @@ export default class SegmentSyncAgent {
 
   /**
    * The user just entered the segment
-   * Check if the segment if included in the synchronized_segments list.
+   * Check if the user belongs to any segment in the synchronized_segments list.
    * Ensure that the audience exists then add the user to the mapped audience
    * @param  {Object} user - A user
    * @param  {Object} segment - A segment
    * @return {undefined}
    */
   handleUserEnteredSegment(user, segment) {
-    return this.shouldSyncSegment(segment) &&
+    return this.shouldSyncUser(user) &&
       this.getOrCreateAudienceForSegment(segment).then(audience =>
-        audience && this.addUsersToAudience(audience.id, [user])
+        audience && this.addUsersToAudiences([user])
       );
   }
 
   /**
    * The user just left the segment.
-   * Check if the segment if included in the synchronized_segments list.
+   * Check if the user belongs to any segment in the synchronized_segments list.
    * Ensure that the audience exists then remove the user to the mapped audience
    * @param  {Object} user - A user
    * @param  {Object} segment - A segment
-   * @return {undefined}
+   * @return {Promise}
    */
   handleUserLeftSegment(user, segment) {
-    return this.shouldSyncSegment(segment) &&
-      this.getOrCreateAudienceForSegment(segment).then(audience => {
+    return this.getOrCreateAudienceForSegment(segment).then(audience => {
+      // the user is still within whitelisted segments
+      // remove him/her only from the audience which he left
+      if (this.shouldSyncUser(user)) {
         return audience && this.removeUsersFromAudience(audience.id, [user]);
-      });
+      }
+      // if he/she left the filtered segments remove it from all audiences
+      return audience && this.removeUsersFromAudiences([user]);
+    });
   }
 
   /**
    * Handler for `segment:update` notification.
-   * Check if the segment if included in the synchronized_segments list,
-   * then ensure that the audience exists.
+   * Ensure that the audience exists and then triggers extract for that segment
+   * to make sure users are synced
    * @param  {Object} segment - A segment
-   * @return {undefined}
+   * @return {Promise}
    */
   handleSegmentUpdate(segment) {
-    return this.shouldSyncSegment(segment) &&
-      this.getOrCreateAudienceForSegment(segment);
+    return this.getOrCreateAudienceForSegment(segment)
+      .then(() => {
+        return this.requestExtract({ segment });
+      });
   }
 
   /**
@@ -227,11 +242,14 @@ export default class SegmentSyncAgent {
    * @return {undefined}
    */
   handleSegmentDelete(segment) {
-    return this.getAudienceForSegment(segment).then(
-      (audience) => {
-        return audience && this.deleteAudience(audience.id, segment.id);
-      }
-    ).catch(err => console.warn("error deleting audience: ", err));
+    // since the deleted segment is not returned by Hull `/segments` API endpoint
+    // we cannot use fetchAudiencesBySegmentId method, we need to use saved
+    // segments to audiences mapping
+    const mapping = this.getPrivateSetting("segment_mapping") || {};
+    const audienceId = mapping[segment.id] || null;
+
+    return audienceId && this.deleteAudience(audienceId, segment.id)
+    .catch(err => console.warn("error deleting audience: ", err));
   }
 
   _getExtractFields() {
@@ -246,24 +264,32 @@ export default class SegmentSyncAgent {
   /**
    * Start an extract job and be notified with the url when complete.
    * @param  {Object} segment - A segment
-   * @param  {Object} audience - An audience
    * @param  {String} format - csv or json
-   * @return {undefined}
+   * @return {Promise}
    */
-  requestExtract({ segment, audience, format = "csv" }) {
+  requestExtract({ segment = null, format = "json" }) {
     const { hostname } = this.req;
-    const search = Object.assign({}, (this.req.query || {}), {
-      segment: segment.id,
-      audience: audience && audience.id
-    });
+    const search = (this.req.query || {});
     const url = URI(`https://${hostname}`)
-      .path("sync")
+      .path("batch")
       .search(search)
       .toString();
 
     const fields = this._getExtractFields();
 
-    return this.hull.get(segment.id).then(({ query }) => {
+    return (() => {
+      if (segment == null) {
+        return Promise.resolve({
+          query: {}
+        });
+      }
+
+      if (segment.query) {
+        return Promise.resolve(segment);
+      }
+      return this.hull.get(segment.id);
+    })()
+    .then(({ query }) => {
       const params = { query, format, url, fields };
       return this.hull.post("extract/user_reports", params);
     });
@@ -294,51 +320,64 @@ export default class SegmentSyncAgent {
    * @param  {String}
    * @param  {String}
    * @param  {Function}
-   * @return {undefined}
+   * @return {Promise}
    */
   handleExtract({ url, format }, callback) {
-    // FIXME > return trype invalid - either we're returniung a promise or a request stream.
     if (!url) return Promise.reject(new Error("Missing URL"));
-    const users = [];
     const decoder = format === "csv" ? CSVStream.createStream({ escapeChar: "\"", enclosedChar: "\"" }) : JSONStream.parse();
 
-    const flush = (user) => {
-      if (user) {
-        users.push(user);
-      }
-      if (users.length >= 500 || !user) {
-        callback(users.splice(0));
-      }
-    };
+    const batch = new BatchStream({ size: 500 });
 
-    return request({ url })
+    return ps.wait(request({ url })
       .pipe(decoder)
-      .on("data", flush)
-      .on("end", flush);
+      .pipe(batch)
+      .pipe(ps.map({ concurrent: 2 }, callback))
+    );
   }
 
-
   /**
-   * Gets memoized list of audiences indexed by segmentId
+   * Gets memoized list of audiences indexed by segmentId.
+   * It is basically a memory caching proxy for fetchAudiencesBySegmentId method.
    * @return {Promise -> Array<audience>}
    */
   getAudiencesBySegmentId() {
-    return this._audiences || this.fetchAudiencesBySegmentId().then(audiences => {
+    if (this._audiences) {
+      return Promise.resolve(this._audiences);
+    }
+    return this.fetchAudiencesBySegmentId().then(audiences => {
       this._audiences = audiences;
       return audiences;
     });
   }
 
   /**
-   * Fetch hull segments that are synchronized as Audiences
+   * Fetch all Hull segments.
    * @return {Promise -> Array<segment>}
    */
   fetchHullSegments() {
-    return this.hull.get("segments", { limit: 500 }).then(
-      segments => segments.filter(this.shouldSyncSegment.bind(this))
-    );
+    return this.hull.get("segments", { limit: 500 });
   }
 
+  /**
+   * Fetch only these Hull segments which are included in "synchronized_segments"
+   * ship setting.
+   * @return {Promise -> Array<segment>}
+   */
+  fetchSyncHullSegments() {
+    const segmentIds = this.getPrivateSetting("synchronized_segments") || [];
+    if (!segmentIds) {
+      return Promise.resolve([]);
+    }
+    return this.hull.get("segments", { where: {
+      id: { $in: segmentIds }
+    } });
+  }
+
+  /**
+   * Downloads all Hull Segments and all Audiences and then maps them
+   * together and returns it grouped by Hull Segments ids.
+   * @return {Promise -> Array}
+   */
   fetchAudiencesBySegmentId() {
     const mapping = this.getPrivateSetting("segment_mapping") || {};
     return Promise.all([
