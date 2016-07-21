@@ -29,7 +29,7 @@ export default function oauth({
    */
   function mailchimpErrorHandler(req, res, ship, hull, err) {
     if (err.statusCode === 401) {
-      hull.utils.log("Mailchimp /lists query returned 401 - ApiKey is invalid");
+      hull.logger.info("Mailchimp /lists query returned 401 - ApiKey is invalid");
       hull.put(ship.id, {
         private_settings: { ...ship.private_settings, api_key: null, mailchimp_list_id: null }
       }).then(() => {
@@ -175,13 +175,13 @@ export default function oauth({
     const { ship, client } = req.hull || {};
     const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
 
-    client.utils.log("Start sync all operation");
+    client.logger.info("Start sync all operation");
     res.end("ok");
     agent.removeAudiences()
     .then(agent.handleShipUpdate.bind(agent, false))
     .then(agent.fetchSyncHullSegments.bind(agent))
     .then(segments => {
-      client.utils.log("Request the extract for segments", segments.length);
+      client.logger.info("Request the extract for segments", segments.length);
       if (segments.length === 0) {
         return agent.requestExtract({});
       }

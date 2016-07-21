@@ -30,7 +30,7 @@ export default class MailchimpList extends SyncAgent {
   static handle(method, MailchimpClientClass) {
     return (payload, { hull, ship, req }) => {
       const message = payload.message;
-      hull.utils.log("handling event", _.get(payload, "subject"));
+      hull.logger.info("handling event", _.get(payload, "subject"));
       const handler = new MailchimpList(ship, hull, req, MailchimpClientClass);
       if (!handler.isConfigured()) {
         const error = new Error("Ship not configured properly. Missing credentials");
@@ -39,6 +39,7 @@ export default class MailchimpList extends SyncAgent {
       }
       try {
         handler[method](message);
+        return Promise.resolve("ok");
       } catch (err) {
         const error = new Error(`Unhandled error: ${err.message}`);
         error.status = 500;
@@ -83,7 +84,7 @@ export default class MailchimpList extends SyncAgent {
       query: {
         count: 1
       }
-    }).then(res => this.hull.utils.log("Queued Mailchimp Batches", res.total_items));
+    }).then(res => this.hull.logger.info("Queued Mailchimp Batches", res.total_items));
   }
 
   // Creates an audience (aka Mailchimp Segment)
@@ -121,7 +122,7 @@ export default class MailchimpList extends SyncAgent {
             return Object.assign({ isNew: true }, audience);
           });
         });
-      }, (err) => this.hull.utils.log("Error in createAudience", err));
+      }, (err) => this.hull.logger.info("Error in createAudience", err));
     });
   }
 
@@ -137,7 +138,7 @@ export default class MailchimpList extends SyncAgent {
     }).then(() => {
       // Save audience mapping in Ship settings once the audience is removed
       return this.saveAudienceMapping(segmentId, null);
-    }, (err) => this.hull.utils.log("Error in deleteAudience", err));
+    }, (err) => this.hull.logger.info("Error in deleteAudience", err));
   }
 
   /**
@@ -150,7 +151,7 @@ export default class MailchimpList extends SyncAgent {
     const usersToRemove = users.filter(
       u => !_.isEmpty(u.email) && !_.isEmpty(u["traits_mailchimp/unique_email_id"])
     );
-    this.hull.utils.log("removeUsersFromAudience.usersToRemove", usersToRemove.length);
+    this.hull.logger.info("removeUsersFromAudience.usersToRemove", usersToRemove.length);
     const batch = usersToRemove.reduce((ops, user) => {
       const { email } = user;
       const hash = getEmailHash(email);
@@ -177,7 +178,7 @@ export default class MailchimpList extends SyncAgent {
     const usersToRemove = users.filter(
       u => !_.isEmpty(u.email) && !_.isEmpty(u["traits_mailchimp/unique_email_id"])
     );
-    this.hull.utils.log("removeUsersFromAudiences.usersToRemove", usersToRemove.length);
+    this.hull.logger.info("removeUsersFromAudiences.usersToRemove", usersToRemove.length);
     return this.getAudiencesBySegmentId()
       .then(audiences => {
         const batch = usersToRemove.reduce((ops, user) => {
@@ -224,21 +225,19 @@ export default class MailchimpList extends SyncAgent {
     return this.fetchAudiences()
       .then(segments => {
         const calls = segments.map(s => {
-          return {
+          return rawClient.request({
             method: "delete",
             path: `/lists/${listId}/segments/${s.id}`
-          };
+          });
         });
 
         if (calls.length === 0) {
           return Promise.resolve([]);
         }
 
-        this.hull.utils.log("Remove Audiences", calls.length);
-        return rawClient.batch(calls, {
-          interval: 1000,
-          verbose: false
-        });
+        this.hull.logger.info("Remove Audiences", calls.length);
+
+        return Promise.all(calls);
       });
   }
 
@@ -250,7 +249,7 @@ export default class MailchimpList extends SyncAgent {
    */
   addUsersToAudiences(users = []) {
     const usersToAdd = users.filter(u => !_.isEmpty(u.email));
-    this.hull.utils.log("addUsersToAudiences.usersToAdd", usersToAdd.length);
+    this.hull.logger.info("addUsersToAudiences.usersToAdd", usersToAdd.length);
 
     return this.ensureUsersSubscribed(usersToAdd)
       .bind(this)
@@ -267,7 +266,7 @@ export default class MailchimpList extends SyncAgent {
           });
           return ops;
         }, []);
-        this.hull.utils.log("addUsersToAudiences.ops", batch.length);
+        this.hull.logger.info("addUsersToAudiences.ops", batch.length);
         return batch;
       })
       .then(batch => {
@@ -321,7 +320,7 @@ export default class MailchimpList extends SyncAgent {
         };
       });
 
-    this.hull.utils.log("ensureUsersSubscribed.usersToSubscribe", batch.length);
+    this.hull.logger.info("ensureUsersSubscribed.usersToSubscribe", batch.length);
 
     if (batch.length === 0) {
       return Promise.resolve(subscribedUsers);
@@ -343,7 +342,7 @@ export default class MailchimpList extends SyncAgent {
         return user;
       });
       return subscribedUsers;
-    }, (err) => this.hull.utils.log("Error in ensureUsersSubscribed", err));
+    }, (err) => this.hull.logger.info("Error in ensureUsersSubscribed", err));
   }
 
   /**
@@ -379,7 +378,7 @@ export default class MailchimpList extends SyncAgent {
   }
 
   request(params) {
-    this.hull.utils.log("mailchimp.request", params.length || _.get(params, "path"));
+    this.hull.logger.info("mailchimp.request", params.length || _.get(params, "path"));
     return this.getClient().request(params);
   }
 
@@ -390,7 +389,7 @@ export default class MailchimpList extends SyncAgent {
     })
     .then(
       ({ segments }) => segments,
-      (err) => this.hull.utils.log("Error in fetchAudiences", err)
+      (err) => this.hull.logger.info("Error in fetchAudiences", err)
     );
   }
 }

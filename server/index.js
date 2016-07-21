@@ -1,4 +1,3 @@
-import _ from "lodash";
 import express from "express";
 import path from "path";
 import { NotifHandler } from "hull";
@@ -8,10 +7,11 @@ import bodyParser from "body-parser";
 import fetchShip from "./lib/middlewares/fetch-ship";
 import MailchimpAgent from "./lib/mailchimp-agent";
 import MailchimpClient from "./lib/mailchimp-client";
+import { randomBytes } from "crypto";
 
 import oauth from "./lib/oauth-client";
 
-export function Server() {
+export function Server({ hostSecret }) {
   const app = express();
 
   app.use(express.static(path.resolve(__dirname, "..", "dist")));
@@ -32,17 +32,16 @@ export function Server() {
     authorizationPath: "/oauth2/authorize"
   }));
 
-  const notifHandler = NotifHandler({
+  app.post("/notify", NotifHandler({
+    hostSecret,
     groupTraits: false,
-    events: {
-      "users_segment:update": MailchimpAgent.handle("handleSegmentUpdate", MailchimpClient),
-      "users_segment:delete": MailchimpAgent.handle("handleSegmentDelete", MailchimpClient),
-      "user_report:update": MailchimpAgent.handle("handleUserUpdate", MailchimpClient),
+    handlers: {
+      "segment:update": MailchimpAgent.handle("handleSegmentUpdate", MailchimpClient),
+      "segment:delete": MailchimpAgent.handle("handleSegmentDelete", MailchimpClient),
+      "user:update": MailchimpAgent.handle("handleUserUpdate", MailchimpClient),
       "ship:update": MailchimpAgent.handle("handleShipUpdate", MailchimpClient),
     }
-  });
-
-  app.post("/notify", notifHandler);
+  }));
 
   app.post("/batch", bodyParser.json(), fetchShip, (req, res) => {
     const { ship, client } = req.hull || {};
@@ -51,15 +50,15 @@ export function Server() {
       return res.status(403).send("Ship is not configured properly");
     }
 
-    client.utils.log("request.batch.start");
+    client.logger.info("request.batch.start");
     res.end("ok");
     return agent.handleExtract(req.body, users => {
-      client.utils.log("request.batch.parseChunk", users.length);
+      client.logger.info("request.batch.parseChunk", users.length);
       const filteredUsers = users.filter(agent.shouldSyncUser.bind(agent));
 
       return agent.addUsersToAudiences(filteredUsers);
     }).then(() => {
-      client.utils.log("request.batch.end");
+      client.logger.info("request.batch.end");
     });
   });
 

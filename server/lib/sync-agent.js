@@ -158,7 +158,7 @@ export default class SegmentSyncAgent {
    * @return {Promise}
    */
   handleShipUpdate(extract = true) {
-    this.hull.utils.log("handleShipUpdate");
+    this.hull.logger.info("handleShipUpdate");
     return this.getAudiencesBySegmentId().then((segments = {}) => {
       return Promise.all(_.map(segments, item => {
         return item.audience || this.createAudience(item.segment, extract);
@@ -177,11 +177,11 @@ export default class SegmentSyncAgent {
   handleUserUpdate({ user, changes = {}, segments = [] }) {
     user.segment_ids = user.segment_ids || segments.map(s => s.id);
     if (_.isEmpty(user["traits_mailchimp/unique_email_id"])) {
-      this.hull.utils.log("User has empty unique_email_id trait");
+      this.hull.logger.info("User has empty unique_email_id trait");
       segments.map((segment) => this.handleUserEnteredSegment(user, segment));
     } else {
       const { entered = [], left = [] } = changes.segments || {};
-      this.hull.utils.log("User has unique_email_id trait", changes.segments);
+      this.hull.logger.info("User has unique_email_id trait", changes.segments);
       entered.map((segment) => this.handleUserEnteredSegment(user, segment));
       left.map((segment) => this.handleUserLeftSegment(user, segment));
     }
