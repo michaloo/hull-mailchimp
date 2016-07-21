@@ -88,7 +88,7 @@ export default class MailchimpList extends SyncAgent {
   }
 
   // Creates an audience (aka Mailchimp Segment)
-  createAudience(segment, extract = true) {
+  createAudience(segment, extract = false) {
     this.hull.logger.info("createAudience");
     const listId = this.getClient().list_id;
     const rawClient = this.getClient().client;
