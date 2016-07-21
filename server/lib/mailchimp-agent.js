@@ -268,7 +268,7 @@ export default class MailchimpList extends SyncAgent {
           return [];
         }
         return this.request(batch);
-      })
+      }, (err) => this.hull.logger.info("error.addUsersToAudiences", err))
       .then(responses => {
         return _.uniqBy(responses, "email_address").map((mc) => {
           const user = _.find(usersToAdd, { email: mc.email_address });
