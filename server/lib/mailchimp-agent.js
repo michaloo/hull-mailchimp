@@ -226,7 +226,7 @@ export default class MailchimpList extends SyncAgent {
 
     this.hull.logger.info("removeAudiences");
     return this.fetchAudiences()
-      .map(segments => {
+      .map(segment => {
         return rawClient.request({
           method: "delete",
           path: `/lists/${listId}/segments/${segment.id}`
