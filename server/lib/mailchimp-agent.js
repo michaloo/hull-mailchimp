@@ -224,22 +224,13 @@ export default class MailchimpList extends SyncAgent {
     const listId = this.getClient().list_id;
     const rawClient = this.getClient().client;
 
+    this.hull.utils.log("removeAudiences");
     return this.fetchAudiences()
-      .then(segments => {
-        const calls = segments.map(s => {
-          return rawClient.request({
-            method: "delete",
-            path: `/lists/${listId}/segments/${s.id}`
-          });
+      .map(segments => {
+        return rawClient.request({
+          method: "delete",
+          path: `/lists/${listId}/segments/${segment.id}`
         });
-
-        if (calls.length === 0) {
-          return Promise.resolve([]);
-        }
-
-        this.hull.logger.info("Remove Audiences", calls.length);
-
-        return Promise.all(calls);
       });
   }
 
@@ -393,7 +384,7 @@ export default class MailchimpList extends SyncAgent {
   fetchAudiences() {
     return this.request({
       path: "segments",
-      body: { type: "static", count: 100 }
+      query: { type: "static", count: 100 }
     })
     .then(
       ({ segments }) => segments,
