@@ -279,8 +279,14 @@ export default class MailchimpList extends SyncAgent {
       .then(responses => {
         return _.uniqBy(responses, "email_address").map((mc) => {
           const user = _.find(usersToAdd, { email: mc.email_address });
-          // Update user's mailchimp/* traits
-          return this.updateUser(user, mc);
+          // TODO an user = undefined here this is a quick fix
+          if (user) {
+            // Update user's mailchimp/* traits
+            return this.updateUser(user, mc);
+          } else {
+            this.hull.utils.log("addUsersToAudiences.userNotFound", mc.email_address);
+          }
+          return Promise.resolve();
         });
       });
   }
