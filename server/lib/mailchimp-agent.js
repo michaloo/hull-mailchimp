@@ -122,8 +122,8 @@ export default class MailchimpList extends SyncAgent {
             return Object.assign({ isNew: true }, audience);
           });
         });
-      }, (err) => this.hull.utils.log("Error in createAudience", err));
-    });
+      });
+    }, (err) => this.hull.utils.log("Error in createAudience", err));
   }
 
   // Deletes an audience (aka Mailchimp Segment)
