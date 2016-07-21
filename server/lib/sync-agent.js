@@ -157,11 +157,11 @@ export default class SegmentSyncAgent {
    * defined in the ship's settings exist
    * @return {Promise}
    */
-  handleShipUpdate(extract = true) {
+  handleShipUpdate(extract = true, create = false) {
     this.hull.logger.info("handleShipUpdate");
     return this.getAudiencesBySegmentId().then((segments = {}) => {
       return Promise.all(_.map(segments, item => {
-        return item.audience || this.createAudience(item.segment, extract);
+        return item.audience || (create && this.createAudience(item.segment, extract));
       }));
     });
   }

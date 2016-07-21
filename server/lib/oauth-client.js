@@ -178,7 +178,7 @@ export default function oauth({
     client.logger.info("Start sync all operation");
     res.end("ok");
     agent.removeAudiences()
-    .then(agent.handleShipUpdate.bind(agent, false))
+    .then(agent.handleShipUpdate.bind(agent, false, true))
     .then(agent.fetchSyncHullSegments.bind(agent))
     .then(segments => {
       client.logger.info("Request the extract for segments", segments.length);
