@@ -98,7 +98,7 @@ export default class MailchimpList extends SyncAgent {
         count: 10000,
         type: "static"
       }
-    }, { verbose: false }).then((res) => {
+    }, { verbose: true }).then((res) => {
       const existingSegment = res.segments.filter(s => s.name === segment.name);
       this.hull.utils.log("createAudience.existingSegment", existingSegment);
       if (existingSegment.length > 0) {
