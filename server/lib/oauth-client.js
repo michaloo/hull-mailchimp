@@ -182,7 +182,7 @@ export default function oauth({
     .then(agent.fetchSyncHullSegments.bind(agent))
     .then(segments => {
       client.utils.log("Request the extract for segments", segments.length);
-      if (segments.length == 0) {
+      if (segments.length === 0) {
         return agent.requestExtract({});
       }
       return Promise.map(segments, segment => {

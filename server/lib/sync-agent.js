@@ -5,6 +5,7 @@ import JSONStream from "JSONStream";
 import request from "request";
 import ps from "promise-streams";
 import BatchStream from "batch-stream";
+import Promise from "bluebird";
 
 export default class SegmentSyncAgent {
 
