@@ -54,13 +54,9 @@ export function Server() {
     client.utils.log("request.batch.start");
     return agent.handleExtract(req.body, users => {
       client.utils.log("request.batch.parseChunk", users.length);
-      const usersToUnsubscribe = _.reject(users, agent.shouldSyncUser.bind(agent));
       const filteredUsers = users.filter(agent.shouldSyncUser.bind(agent));
 
-      return agent.addUsersToAudiences(filteredUsers)
-        .then(() => {
-          return agent.removeUsersFromAudiences(usersToUnsubscribe);
-        });
+      return agent.addUsersToAudiences(filteredUsers);
     }).then(() => {
       client.utils.log("request.batch.end");
       res.end("ok");

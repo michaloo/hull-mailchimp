@@ -167,6 +167,9 @@ export default class MailchimpList extends SyncAgent {
 
   /**
    * Removes provided users from all audiences
+   * TODO - try to optimize the number of batched operations,
+   * right now it tries to remove users from all audiences, so the number
+   * of operation would be users * audiences
    * @param  {Array} users
    * @return {Promise}
    */
@@ -217,25 +220,26 @@ export default class MailchimpList extends SyncAgent {
   removeAudiences() {
     const listId = this.getClient().list_id;
     const rawClient = this.getClient().client;
-    const mapping = this.getPrivateSetting("segment_mapping") || {};
 
-    const calls = Object.keys(mapping).map(segment => {
-      const mailchimpId = mapping[segment];
-      return {
-        method: "delete",
-        path: `/lists/${listId}/segments/${mailchimpId}`
-      };
-    });
+    return this.fetchAudiences()
+      .then(segments => {
+        const calls = segments.map(s => {
+          return {
+            method: "delete",
+            path: `/lists/${listId}/segments/${s.id}`
+          };
+        });
 
-    if (calls.length === 0) {
-      return Promise.resolve([]);
-    }
+        if (calls.length === 0) {
+          return Promise.resolve([]);
+        }
 
-    this.hull.utils.log("Remove Audiences", calls.length);
-    return rawClient.batch(calls, {
-      interval: 1000,
-      verbose: false
-    });
+        this.hull.utils.log("Remove Audiences", calls.length);
+        return rawClient.batch(calls, {
+          interval: 1000,
+          verbose: false
+        });
+      });
   }
 
   /**

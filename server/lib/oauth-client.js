@@ -178,18 +178,15 @@ export default function oauth({
     client.utils.log("Start sync all operation");
     agent.removeAudiences()
     .then(agent.handleShipUpdate.bind(agent, false))
-    // in use case when hull user decides to sync all his/her userbase
-    // and then selects some filters to filter out some users.
-    // This is why we need to trigger sync off all users here.
-    // .then(agent.fetchSyncHullSegments.bind(this))
-    .then(() => {
-      // client.utils.log("Request the extract for segments", segments.length);
-      // if (segments.length == 0) {
-      return agent.requestExtract({});
-      // }
-      // return Promise.map(segments, segment => {
-      //   return agent.requestExtract({ segment });
-      // });
+    .then(agent.fetchSyncHullSegments.bind(agent))
+    .then(segments => {
+      client.utils.log("Request the extract for segments", segments.length);
+      if (segments.length == 0) {
+        return agent.requestExtract({});
+      }
+      return Promise.map(segments, segment => {
+        return agent.requestExtract({ segment });
+      });
     })
     .then(() => {
       res.end("ok");

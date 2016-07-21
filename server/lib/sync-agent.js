@@ -331,7 +331,7 @@ export default class SegmentSyncAgent {
     return ps.wait(request({ url })
       .pipe(decoder)
       .pipe(batch)
-      .pipe(ps.map({ concurrent: 1 }, callback))
+      .pipe(ps.map({ concurrent: 2 }, callback))
     );
   }
 
