@@ -77,23 +77,25 @@ export default class MailchimpList extends SyncAgent {
   }
 
   checkBatchQueue() {
-    const rawClient = this.getClient().client;
-
-    return rawClient.get({
+    return this.request({
+      method: "get",
       path: "/batches",
       query: {
-        count: 1
+        count: 100,
+        fields: "batches.id,batches.status,total_items"
       }
-    }).then(res => this.hull.logger.info("Queued Mailchimp Batches", res.total_items));
+    }).then(res => {
+      this.hull.logger.info("checkBatchQueue.total_items", res.total_items)
+      const pending = res.batches.filter(b => b.status === "pending");
+      this.hull.logger.info("checkBatchQueue.pending", pending.length)
+    });
   }
 
   // Creates an audience (aka Mailchimp Segment)
   createAudience(segment, extract = false) {
     this.hull.logger.info("createAudience");
-    const listId = this.getClient().list_id;
-    const rawClient = this.getClient().client;
-    return rawClient.request({
-      path: `/lists/${listId}/segments`,
+    return this.request({
+      path: "/lists/{list_id}/segments",
       method: "get",
       query: {
         count: 250,
@@ -109,7 +111,7 @@ export default class MailchimpList extends SyncAgent {
 
       this._audiences = null;
       return this.request({
-        path: "segments",
+        path: "/lists/{list_id}/segments",
         body: { name: segment.name, static_segment: [] },
         method: "post"
       }).then(audience => {
@@ -135,7 +137,7 @@ export default class MailchimpList extends SyncAgent {
     }
     this._audiences = null;
     return this.request({
-      path: `segments/${audienceId}`,
+      path: `/lists/{list_id}/segments/${audienceId}`,
       method: "delete"
     }).then(() => {
       // Save audience mapping in Ship settings once the audience is removed
@@ -160,7 +162,7 @@ export default class MailchimpList extends SyncAgent {
       if (hash) {
         ops.push({
           method: "delete",
-          path: `segments/${audienceId}/members/${hash}`
+          path: `/lists/{list_id}/segments/${audienceId}/members/${hash}`
         });
       }
       return ops;
@@ -190,7 +192,7 @@ export default class MailchimpList extends SyncAgent {
             _.map(audiences, ({ audience }) => {
               ops.push({
                 method: "delete",
-                path: `segments/${audience.id}/members/${hash}`
+                path: `/lists/{list_id}/segments/${audience.id}/members/${hash}`
               });
             });
           }
@@ -201,36 +203,18 @@ export default class MailchimpList extends SyncAgent {
   }
 
   /**
-   * Downloads all Mailchimp members list
-   * @return {Promise}
-   */
-  fetchUsers() {
-    const listId = this.getClient().list_id;
-    const rawClient = this.getClient().client;
-    return rawClient.batch({
-      method: "get",
-      path: `/lists/${listId}/members`,
-      query: {
-        count: 10000000000,
-      }
-    });
-  }
-
-  /**
    * Deletes all mapped Mailchimp Segments
    * @return {Promise}
    */
   removeAudiences() {
-    const listId = this.getClient().list_id;
-    const rawClient = this.getClient().client;
 
     this.hull.logger.info("removeAudiences");
     return this.fetchAudiences()
       .map(segment => {
         this.hull.logger.info("removeAudience", segment.id);
-        return rawClient.request({
+        return this.getClient().request({
           method: "delete",
-          path: `/lists/${listId}/segments/${segment.id}`
+          path: `/lists/{list_id}/segments/${segment.id}`
         });
       }, { concurrency: 3 });
   }
@@ -255,7 +239,7 @@ export default class MailchimpList extends SyncAgent {
             return ops.push({
               body: { email_address: user.email, status: "subscribed" },
               method: "post",
-              path: `segments/${audience.id}/members`
+              path: `/lists/{list_id}/segments/${audience.id}/members`
             });
           });
           return ops;
@@ -307,7 +291,7 @@ export default class MailchimpList extends SyncAgent {
       .map(user => {
         return {
           method: "post",
-          path: "members",
+          path: "/lists/{list_id}/members",
           body: {
             email_type: "html",
             merge_fields: {
@@ -373,18 +357,23 @@ export default class MailchimpList extends SyncAgent {
   getClient() {
     if (!this._client) {
       this._client = new this.MailchimpClientClass(this.getCredentials());
+      setInterval(this.checkBatchQueue.bind(this), 5000);
     }
     return this._client;
   }
 
   request(params) {
     this.hull.logger.info("mailchimp.request", params.length || _.get(params, "path"));
+    if (_.isArray(params)) {
+      return this.getClient().batch(params);
+    }
     return this.getClient().request(params);
   }
 
   fetchAudiences() {
     return this.request({
-      path: "segments",
+      method: "get",
+      path: "/lists/{list_id}/segments",
       query: { type: "static", count: 250 }
     })
     .then(
