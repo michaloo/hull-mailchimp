@@ -55,7 +55,7 @@ export function Server({ hostSecret }) {
     return agent.handleExtract(req.body, users => {
       client.logger.info("request.batch.parseChunk", users.length);
       const filteredUsers = users.filter(agent.shouldSyncUser.bind(agent));
-
+      client.logger.info("request.batch.filteredUsers", filteredUsers.length);
       return agent.addUsersToAudiences(filteredUsers);
     }).then(() => {
       client.logger.info("request.batch.end");
