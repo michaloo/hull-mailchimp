@@ -3,6 +3,8 @@ import _ from "lodash";
 import crypto from "crypto";
 import SyncAgent from "./sync-agent";
 
+const batchQueueChecks = [];
+
 const MC_KEYS = [
   "stats.avg_open_rate",
   "stats.avg_click_rate",
@@ -370,7 +372,10 @@ export default class MailchimpList extends SyncAgent {
   getClient() {
     if (!this._client) {
       this._client = new this.MailchimpClientClass(this.getCredentials());
-      setInterval(this.checkBatchQueue.bind(this), process.env.CHECK_BATCH_QUEUE || 30000);
+
+      if (!batchQueueChecks[this._client.api_key]) {
+        batchQueueChecks[this._client.api_key] = setInterval(this.checkBatchQueue.bind(this), process.env.CHECK_BATCH_QUEUE || 30000);
+      }
     }
     return this._client;
   }
