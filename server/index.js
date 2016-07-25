@@ -56,7 +56,7 @@ export function Server({ hostSecret }) {
 
       const filteredUsers = users.filter((user) => {
         return !_.isEmpty(user.email)
-          && agent.shouldSyncUser(agent);
+          && agent.shouldSyncUser(user);
       });
 
       const usersToRemove = users.filter((user) => {
