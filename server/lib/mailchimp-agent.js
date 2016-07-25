@@ -187,7 +187,7 @@ export default class MailchimpList extends SyncAgent {
    * Removes provided users from all audiences
    * TODO - try to optimize the number of batched operations,
    * right now it tries to remove users from all audiences, so the number
-   * of operation would be users * audiences
+   * of operation would be users (500 are done in one chunk) * audiences
    * @param  {Array} users
    * @return {Promise}
    */
@@ -257,15 +257,10 @@ export default class MailchimpList extends SyncAgent {
           return ops;
         }, []);
         this.hull.logger.info("addUsersToAudiences.ops", batch.length);
-        return batch;
-      })
-      .then(batch => {
-        if (batch.length === 0) {
-          return [];
-        }
         return this.request(batch);
       }, (err) => this.hull.logger.info("error.addUsersToAudiences", err))
       .then(responses => {
+        this.hull.logger.info("addUsersToAudiences.update", responses.length);
         return Promise.all(_.uniqBy(responses, "email_address").map((mc) => {
           const user = _.find(usersToAdd, { email: mc.email_address });
           if (user) {
@@ -277,7 +272,7 @@ export default class MailchimpList extends SyncAgent {
           // it could happen during tests when an user has got
           // the `traits_mailchimp/unique_email_id` trait but
           // the testing mailchimp list was changed
-          this.hull.logger.warn("addUsersToAudiences.userNotFound", mc);
+          this.hull.logger.error("addUsersToAudiences.userNotFound", mc);
           return Promise.resolve();
         }));
       });
@@ -363,6 +358,7 @@ export default class MailchimpList extends SyncAgent {
 
     // Skip update if everything is already up to date
     if (_.isEmpty(traits)) {
+      this.hull.logger.log("updateUser.alreadyUpToDate", user.id);
       return Promise.resolve({});
     }
 

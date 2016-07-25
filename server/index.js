@@ -2,12 +2,12 @@ import express from "express";
 import path from "path";
 import { NotifHandler } from "hull";
 import { renderFile } from "ejs";
-
+import _ from "lodash";
 import bodyParser from "body-parser";
+
 import fetchShip from "./lib/middlewares/fetch-ship";
 import MailchimpAgent from "./lib/mailchimp-agent";
 import MailchimpClient from "./lib/mailchimp-client";
-
 import oauth from "./lib/oauth-client";
 
 export function Server({ hostSecret }) {
@@ -53,9 +53,20 @@ export function Server({ hostSecret }) {
     res.end("ok");
     return agent.handleExtract(req.body, users => {
       client.logger.info("request.batch.parseChunk", users.length);
-      const filteredUsers = users.filter(agent.shouldSyncUser.bind(agent));
+
+      const filteredUsers = users.filter((user) => {
+        return !_.isEmpty(user.email)
+          && agent.shouldSyncUser(agent);
+      });
+
+      const usersToRemove = users.filter((user) => {
+        return !_.isEmpty(user["traits_mailchimp/unique_email_id"])
+            && !agent.shouldSyncUser(user);
+      });
       client.logger.info("request.batch.filteredUsers", filteredUsers.length);
-      return agent.addUsersToAudiences(filteredUsers);
+      client.logger.info("request.batch.usersToRemove", usersToRemove.length);
+      return agent.addUsersToAudiences(filteredUsers)
+        .then(() => agent.removeUsersFromAudiences(usersToRemove));
     }).then(() => {
       client.logger.info("request.batch.end");
     });

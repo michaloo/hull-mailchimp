@@ -212,7 +212,10 @@ export default class SegmentSyncAgent {
    */
   handleUserLeftSegment(user, segment) {
     return this.getOrCreateAudienceForSegment(segment).then(audience => {
-      return audience && this.removeUsersFromAudience(audience.id, [user]);
+      if (this.shouldSyncUser(user)) {
+        return audience && this.removeUsersFromAudience(audience.id, [user]);
+      }
+      return this.removeUsersFromAudiences([user]);
     });
   }
 
