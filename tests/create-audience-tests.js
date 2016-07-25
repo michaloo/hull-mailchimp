@@ -9,21 +9,32 @@ import MailchimpAgent from "../server/lib/mailchimp-agent";
 describe("MailchimpAgent", () => {
   describe("createAudience", () => {
 
+    const hullStub = {
+      logger: {
+        info() {},
+        debug() {}
+      },
+      get() {
+        return test.hullSegments;
+      }
+    };
+
     it(`should return audience when there is an exisiting static segment in mailchimp`, () => {
 
       class MailchimpClientStub {
-        constructor() {
-          this.client = {
-            batch() {
-              return new Promise.resolve({ segments: [
-                { name: "testSegment" }
-              ] });
-            }
-          }
+        batch() {
+          return new Promise.resolve({ segments: [
+            { name: "testSegment" }
+          ] });
+        }
+        request() {
+          return new Promise.resolve({ segments: [
+            { name: "testSegment" }
+          ] });
         }
       }
 
-      const mailchimpAgent = new MailchimpAgent({}, {}, {}, MailchimpClientStub);
+      const mailchimpAgent = new MailchimpAgent({}, hullStub, {}, MailchimpClientStub);
 
       return mailchimpAgent.createAudience({ name: "testSegment" })
         .then(res => {
@@ -33,23 +44,17 @@ describe("MailchimpAgent", () => {
 
     it(`should create and return an audience when there is no an exisiting static segment`, () => {
 
-      class MailchimpClientStub {
-        constructor() {
-          this.client = {
-            batch() {
-              return new Promise.resolve({ segments: [] });
-            }
-          }
-        }
-      }
+      class MailchimpClientStub {}
 
-
-      const mailchimpAgent = new MailchimpAgent({}, {}, {}, MailchimpClientStub);
+      const mailchimpAgent = new MailchimpAgent({}, hullStub, {}, MailchimpClientStub);
 
       mailchimpAgent.request = sinon.stub();
       mailchimpAgent.saveAudienceMapping = sinon.stub();
 
       mailchimpAgent.request.onCall(0)
+      .returns(new Promise.resolve({ segments: [] }));
+
+      mailchimpAgent.request.onCall(1)
       .returns(new Promise.resolve({
         id: 123,
         name: 'test',

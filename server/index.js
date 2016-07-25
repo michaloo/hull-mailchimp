@@ -7,7 +7,6 @@ import bodyParser from "body-parser";
 import fetchShip from "./lib/middlewares/fetch-ship";
 import MailchimpAgent from "./lib/mailchimp-agent";
 import MailchimpClient from "./lib/mailchimp-client";
-import { randomBytes } from "crypto";
 
 import oauth from "./lib/oauth-client";
 

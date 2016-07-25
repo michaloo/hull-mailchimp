@@ -47,7 +47,7 @@ export default class SegmentSyncAgent {
    * @param  {Boolean} extract - Start an extract job to batch sync the segment
    * @return {Promise -> audience}
    */
-  createAudience(segment, extract = true) {
+  createAudience(segment, extract = true) { // eslint-disable-line no-unused-vars
     throw new Error("Not Implemented");
   }
 
@@ -57,7 +57,7 @@ export default class SegmentSyncAgent {
    * @param  {String} segmentId - A segment ID
    * @return {Promise -> audience}
    */
-  deleteAudience(audienceId, segmentId) {
+  deleteAudience(audienceId, segmentId) { // eslint-disable-line no-unused-vars
     throw new Error("Not Implemented");
   }
 
@@ -67,7 +67,7 @@ export default class SegmentSyncAgent {
    * @param  {Array<user>} users - A list of users
    * @return {Promise}
    */
-  removeUsersFromAudience(audienceId, users = []) {
+  removeUsersFromAudience(audienceId, users = []) { // eslint-disable-line no-unused-vars
     throw new Error("Not Implemented");
   }
 
@@ -77,7 +77,7 @@ export default class SegmentSyncAgent {
    * @param  {Array<user>} users - A list of users
    * @return {Promise}
    */
-  addUsersToAudience(audienceId, users = []) {
+  addUsersToAudience(audienceId, users = []) { // eslint-disable-line no-unused-vars
     throw new Error("Not Implemented");
   }
 
@@ -244,7 +244,7 @@ export default class SegmentSyncAgent {
     const audienceId = mapping[segment.id] || null;
 
     return audienceId && this.deleteAudience(audienceId, segment.id)
-    .catch(err => console.warn("error deleting audience: ", err));
+    .catch(err => this.hull.logger.error("error deleting audience: ", err));
   }
 
   _getExtractFields() {
@@ -323,11 +323,11 @@ export default class SegmentSyncAgent {
 
     const batch = new BatchStream({ size: 500 });
 
-    return ps.wait(request({ url })
+    return request({ url })
       .pipe(decoder)
       .pipe(batch)
       .pipe(ps.map({ concurrent: 2 }, callback))
-    );
+      .wait();
   }
 
   /**
@@ -394,7 +394,7 @@ export default class SegmentSyncAgent {
         return res;
       }, {});
       return audiencesBySegmentId;
-    }, (err) => console.log(err));
+    }, (err) => this.hull.logger.error(err));
   }
 
 }

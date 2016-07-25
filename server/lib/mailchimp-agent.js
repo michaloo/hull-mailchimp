@@ -77,17 +77,28 @@ export default class MailchimpList extends SyncAgent {
   }
 
   checkBatchQueue() {
+    // count greater that 100 here causes an error
+    // using an offset could be useful here, but it seems that the endpoint
+    // does not sort the batches by time
+    // so the log will present information for 100 batches
     return this.request({
       method: "get",
       path: "/batches",
       query: {
         count: 100,
-        fields: "batches.id,batches.status,total_items"
+        fields: "batches.status,total_items"
       }
-    }).then(res => {
-      this.hull.logger.info("checkBatchQueue.total_items", res.total_items)
+    })
+    .then(res => {
       const pending = res.batches.filter(b => b.status === "pending");
-      this.hull.logger.info("checkBatchQueue.pending", pending.length)
+      const started = res.batches.filter(b => b.status === "started");
+      const finished = res.batches.filter(b => b.status === "finished");
+      this.hull.logger.info("checkBatchQueue", {
+        total: res.total_items,
+        pending: pending.length,
+        started: started.length,
+        finished: finished.length
+      });
     });
   }
 
@@ -207,7 +218,6 @@ export default class MailchimpList extends SyncAgent {
    * @return {Promise}
    */
   removeAudiences() {
-
     this.hull.logger.info("removeAudiences");
     return this.fetchAudiences()
       .map(segment => {
@@ -256,13 +266,16 @@ export default class MailchimpList extends SyncAgent {
       .then(responses => {
         return _.uniqBy(responses, "email_address").map((mc) => {
           const user = _.find(usersToAdd, { email: mc.email_address });
-          // TODO an user = undefined here this is a quick fix
           if (user) {
             // Update user's mailchimp/* traits
             return this.updateUser(user, mc);
-          } else {
-            this.hull.logger.info("addUsersToAudiences.userNotFound", mc.email_address);
           }
+          // this warning is triggered by situation where
+          // there is not mailchimp member for selected e_mail
+          // it could happen during tests when an user has got
+          // the `traits_mailchimp/unique_email_id` trait but
+          // the testing mailchimp list was changed
+          this.hull.logger.warn("addUsersToAudiences.userNotFound", mc);
           return Promise.resolve();
         });
       });
@@ -357,17 +370,18 @@ export default class MailchimpList extends SyncAgent {
   getClient() {
     if (!this._client) {
       this._client = new this.MailchimpClientClass(this.getCredentials());
-      setInterval(this.checkBatchQueue.bind(this), 5000);
+      setInterval(this.checkBatchQueue.bind(this), process.env.CHECK_BATCH_QUEUE || 30000);
     }
     return this._client;
   }
 
   request(params) {
-    this.hull.logger.info("mailchimp.request", params.length || _.get(params, "path"));
+    const client = this.getClient();
+    this.hull.logger.debug("mailchimp.request", params.length || _.get(params, "path"));
     if (_.isArray(params)) {
-      return this.getClient().batch(params);
+      return client.batch(params);
     }
-    return this.getClient().request(params);
+    return client.request(params);
   }
 
   fetchAudiences() {

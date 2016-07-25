@@ -1,13 +1,16 @@
 import _ from "lodash";
 import Promise from "bluebird";
+
 import Mailchimp from "mailchimp-api-v3";
+import limiter from "./limiter";
 
 export default class MailchimpClient {
 
   constructor({ api_key, domain, mailchimp_list_id = {} }) {
     // the mailchimp-api-v3 library splits the api_key using dash and uses
     // second part as a api datacenter
-    this.client = new Mailchimp(`${api_key}-${domain}`);
+    this.api_key = `${api_key}-${domain}`;
+    this.client = new Mailchimp(this.api_key);
     this.list_id = mailchimp_list_id;
   }
 
@@ -18,7 +21,7 @@ export default class MailchimpClient {
    * @return {Object}
    */
   replacePath(request) {
-    request.path = _.replace(request.path, '{list_id}', this.list_id);
+    request.path = _.replace(request.path, "{list_id}", this.list_id);
     return request;
   }
 
@@ -31,13 +34,16 @@ export default class MailchimpClient {
     if (_.isEmpty(ops)) {
       return Promise.resolve([]);
     }
-    if (_.isArray(ops) && ops.length === 1) {
+
+    // microbatch - when the batch consists of only 1 operation,
+    // let's do it in a traditional query
+    if (ops.length === 1) {
       return this.request(ops.pop());
     }
-
     ops = ops.map(this.replacePath.bind(this));
 
-    return this.client.batch(ops, { verbose: false });
+    return limiter.key(this.api_key)
+      .schedule(this.client.batch.bind(this.client), ops, { verbose: false });
   }
 
   /**
@@ -47,7 +53,8 @@ export default class MailchimpClient {
    */
   request(params) {
     params = this.replacePath(params);
-    return this.client.request(params);
+    return limiter.key(this.api_key)
+      .schedule(this.client.request.bind(this.client), params);
   }
 
 }
