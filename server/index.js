@@ -49,7 +49,7 @@ export function Server({ hostSecret }) {
       return res.status(403).send("Ship is not configured properly");
     }
 
-    client.logger.info("request.batch.start");
+    client.logger.info("request.batch.start", req.body);
     res.end("ok");
     return agent.handleExtract(req.body, users => {
       client.logger.info("request.batch.parseChunk", users.length);

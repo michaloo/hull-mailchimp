@@ -264,7 +264,7 @@ export default class MailchimpList extends SyncAgent {
         return this.request(batch);
       }, (err) => this.hull.logger.info("error.addUsersToAudiences", err))
       .then(responses => {
-        return _.uniqBy(responses, "email_address").map((mc) => {
+        return Promise.all(_.uniqBy(responses, "email_address").map((mc) => {
           const user = _.find(usersToAdd, { email: mc.email_address });
           if (user) {
             // Update user's mailchimp/* traits
@@ -277,7 +277,7 @@ export default class MailchimpList extends SyncAgent {
           // the testing mailchimp list was changed
           this.hull.logger.warn("addUsersToAudiences.userNotFound", mc);
           return Promise.resolve();
-        });
+        }));
       });
   }
 
