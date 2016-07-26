@@ -261,7 +261,7 @@ export default class MailchimpList extends SyncAgent {
         return this.request(batch);
       }, (err) => this.hull.logger.info("error.addUsersToAudiences", err))
       .then(responses => {
-        const errors = _.reject(responses, "email_address")
+        const errors = _.reject(responses, "email_address");
         const uniqSuccess = _.filter(_.uniqBy(responses, "email_address"), "email_address");
         this.hull.logger.info("addUsersToAudiences.update", {
           responses: responses.length,
