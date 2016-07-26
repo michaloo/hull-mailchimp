@@ -3,6 +3,9 @@ import URI from "urijs";
 import CSVStream from "csv-stream";
 import JSONStream from "JSONStream";
 import request from "request";
+import ps from "promise-streams";
+import BatchStream from "batch-stream";
+import Promise from "bluebird";
 
 export default class SegmentSyncAgent {
 
@@ -44,7 +47,7 @@ export default class SegmentSyncAgent {
    * @param  {Boolean} extract - Start an extract job to batch sync the segment
    * @return {Promise -> audience}
    */
-  createAudience(segment, extract = true) {
+  createAudience(segment, extract = true) { // eslint-disable-line no-unused-vars
     throw new Error("Not Implemented");
   }
 
@@ -54,7 +57,7 @@ export default class SegmentSyncAgent {
    * @param  {String} segmentId - A segment ID
    * @return {Promise -> audience}
    */
-  deleteAudience(audienceId, segmentId) {
+  deleteAudience(audienceId, segmentId) { // eslint-disable-line no-unused-vars
     throw new Error("Not Implemented");
   }
 
@@ -64,7 +67,7 @@ export default class SegmentSyncAgent {
    * @param  {Array<user>} users - A list of users
    * @return {Promise}
    */
-  removeUsersFromAudience(audienceId, users = []) {
+  removeUsersFromAudience(audienceId, users = []) { // eslint-disable-line no-unused-vars
     throw new Error("Not Implemented");
   }
 
@@ -74,7 +77,7 @@ export default class SegmentSyncAgent {
    * @param  {Array<user>} users - A list of users
    * @return {Promise}
    */
-  addUsersToAudience(audienceId, users = []) {
+  addUsersToAudience(audienceId, users = []) { // eslint-disable-line no-unused-vars
     throw new Error("Not Implemented");
   }
 
@@ -154,10 +157,11 @@ export default class SegmentSyncAgent {
    * defined in the ship's settings exist
    * @return {Promise}
    */
-  handleShipUpdate() {
+  handleShipUpdate(extract = true, create = false) {
+    this.hull.logger.info("handleShipUpdate");
     return this.getAudiencesBySegmentId().then((segments = {}) => {
       return Promise.all(_.map(segments, item => {
-        return item.audience || this.createAudience(item.segment);
+        return item.audience || (create && this.createAudience(item.segment, extract));
       }));
     });
   }
@@ -171,10 +175,13 @@ export default class SegmentSyncAgent {
    * @return {undefined}
    */
   handleUserUpdate({ user, changes = {}, segments = [] }) {
+    user.segment_ids = user.segment_ids || segments.map(s => s.id);
     if (_.isEmpty(user["traits_mailchimp/unique_email_id"])) {
+      this.hull.logger.info("User has empty unique_email_id trait");
       segments.map((segment) => this.handleUserEnteredSegment(user, segment));
     } else {
       const { entered = [], left = [] } = changes.segments || {};
+      this.hull.logger.info("User has unique_email_id trait", changes.segments);
       entered.map((segment) => this.handleUserEnteredSegment(user, segment));
       left.map((segment) => this.handleUserLeftSegment(user, segment));
     }
@@ -191,7 +198,7 @@ export default class SegmentSyncAgent {
   handleUserEnteredSegment(user, segment) {
     return this.shouldSyncUser(user) &&
       this.getOrCreateAudienceForSegment(segment).then(audience =>
-        audience && this.addUsersToAudience(audience.id, [user])
+        audience && this.addUsersToAudiences([user])
       );
   }
 
@@ -201,23 +208,29 @@ export default class SegmentSyncAgent {
    * Ensure that the audience exists then remove the user to the mapped audience
    * @param  {Object} user - A user
    * @param  {Object} segment - A segment
-   * @return {undefined}
+   * @return {Promise}
    */
   handleUserLeftSegment(user, segment) {
-    return this.shouldSyncUser(user) &&
-      this.getOrCreateAudienceForSegment(segment).then(audience => {
+    return this.getOrCreateAudienceForSegment(segment).then(audience => {
+      if (this.shouldSyncUser(user)) {
         return audience && this.removeUsersFromAudience(audience.id, [user]);
-      });
+      }
+      return this.removeUsersFromAudiences([user]);
+    });
   }
 
   /**
    * Handler for `segment:update` notification.
-   * Ensure that the audience exists.
+   * Ensure that the audience exists and then triggers extract for that segment
+   * to make sure users are synced
    * @param  {Object} segment - A segment
-   * @return {undefined}
+   * @return {Promise}
    */
   handleSegmentUpdate(segment) {
-    return this.getOrCreateAudienceForSegment(segment);
+    return this.getOrCreateAudienceForSegment(segment)
+      .then(() => {
+        return this.requestExtract({ segment });
+      });
   }
 
   /**
@@ -234,7 +247,7 @@ export default class SegmentSyncAgent {
     const audienceId = mapping[segment.id] || null;
 
     return audienceId && this.deleteAudience(audienceId, segment.id)
-    .catch(err => console.warn("error deleting audience: ", err));
+    .catch(err => this.hull.logger.error("error deleting audience: ", err));
   }
 
   _getExtractFields() {
@@ -249,24 +262,26 @@ export default class SegmentSyncAgent {
   /**
    * Start an extract job and be notified with the url when complete.
    * @param  {Object} segment - A segment
-   * @param  {Object} audience - An audience
    * @param  {String} format - csv or json
    * @return {Promise}
    */
-  requestExtract({ segment, audience, format = "csv" }) {
+  requestExtract({ segment = null, format = "json" }) {
     const { hostname } = this.req;
-    const search = Object.assign({}, (this.req.query || {}), {
-      segment: segment.id,
-      audience: audience && audience.id
-    });
+    const search = (this.req.query || {});
     const url = URI(`https://${hostname}`)
-      .path("sync")
+      .path("batch")
       .search(search)
       .toString();
 
     const fields = this._getExtractFields();
 
     return (() => {
+      if (segment == null) {
+        return Promise.resolve({
+          query: {}
+        });
+      }
+
       if (segment.query) {
         return Promise.resolve(segment);
       }
@@ -303,29 +318,27 @@ export default class SegmentSyncAgent {
    * @param  {String}
    * @param  {String}
    * @param  {Function}
-   * @return {undefined}
+   * @return {Promise}
    */
   handleExtract({ url, format }, callback) {
-    // FIXME > return trype invalid - either we're returniung a promise or a request stream.
     if (!url) return Promise.reject(new Error("Missing URL"));
-    const users = [];
     const decoder = format === "csv" ? CSVStream.createStream({ escapeChar: "\"", enclosedChar: "\"" }) : JSONStream.parse();
 
-    const flush = (user) => {
-      if (user) {
-        users.push(user);
-      }
-      if (users.length >= 500 || !user) {
-        callback(users.splice(0));
-      }
-    };
+    const batch = new BatchStream({ size: 500 });
 
     return request({ url })
       .pipe(decoder)
-      .on("data", flush)
-      .on("end", flush);
+      .pipe(batch)
+      .pipe(ps.map({ concurrent: 2 }, (...args) => {
+        try {
+          callback(...args);
+        } catch (e) {
+          console.error(e);
+          throw e;
+        }
+      }))
+      .wait();
   }
-
 
   /**
    * Gets memoized list of audiences indexed by segmentId.
@@ -357,6 +370,10 @@ export default class SegmentSyncAgent {
    */
   fetchSyncHullSegments() {
     const segmentIds = this.getPrivateSetting("synchronized_segments") || [];
+    this.hull.logger.info("fetchSyncHullSegments.segmentIds", segmentIds);
+    if (_.isEmpty(segmentIds)) {
+      return Promise.resolve([]);
+    }
     return this.hull.get("segments", { where: {
       id: { $in: segmentIds }
     } });
@@ -387,7 +404,7 @@ export default class SegmentSyncAgent {
         return res;
       }, {});
       return audiencesBySegmentId;
-    }, (err) => console.log(err));
+    }, (err) => this.hull.logger.error(err));
   }
 
 }

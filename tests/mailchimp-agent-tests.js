@@ -60,8 +60,9 @@ describe("MailchimpAgent", () => {
         }
 
         const hullStub = {
-          utils: {
-            log() {}
+          logger: {
+            info() {},
+            debug() {}
           },
           get() {
             return test.hullSegments;

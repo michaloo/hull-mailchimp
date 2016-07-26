@@ -1,8 +1,10 @@
 import { Router } from "express";
 import bodyParser from "body-parser";
-import fetchShip from "./middlewares/fetch-ship";
 import oauth2Factory from "simple-oauth2";
 import rp from "request-promise";
+import Promise from "bluebird";
+
+import fetchShip from "./middlewares/fetch-ship";
 import MailchimpAgent from "./mailchimp-agent";
 import MailchimpClient from "./mailchimp-client";
 
@@ -28,24 +30,27 @@ export default function oauth({
    */
   function mailchimpErrorHandler(req, res, ship, hull, err) {
     if (err.statusCode === 401) {
-      hull.utils.log("Mailchimp /lists query returned 401 - ApiKey is invalid");
+      hull.logger.info("Mailchimp /lists query returned 401 - ApiKey is invalid");
       hull.put(ship.id, {
         private_settings: { ...ship.private_settings, api_key: null, mailchimp_list_id: null }
       }).then(() => {
         return res.redirect(`${req.baseUrl}${homeUrl}?hullToken=${req.hull.hullToken}`);
       });
+    } else {
+      // TODO add an error page template to display uncaught errors
+      res.status(500).end(`Error: ${err.statusCode} -- ${err.message}`);
     }
   }
 
   function renderHome(req, res) {
     const { ship = {}, } = req.hull;
-    const { api_key: apiKey, mailchimp_list_id: mailchimpListId } = ship.private_settings || {};
+    const { api_key: apiKey, mailchimp_list_id: mailchimpListId, api_endpoint: apiEndpoint } = ship.private_settings || {};
     const redirect_uri = `https://${req.hostname}${req.baseUrl}${callbackUrl}?hullToken=${req.hull.hullToken}`;
     const viewData = {
       name,
       url: oauth2.authCode.authorizeURL({ redirect_uri })
     };
-    if (!apiKey) {
+    if (!apiKey || !apiEndpoint) {
       return res.render("login.html", viewData);
     }
 
@@ -165,24 +170,25 @@ export default function oauth({
   /**
    * Sync all operation handler. It drops all Mailchimp Segments aka Audiences
    * then creates them according to `segment_mapping` settings and triggers
-   * sync for all selected segments.
+   * sync for all users
    */
   function handleSync(req, res) {
     const { ship, client } = req.hull || {};
     const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
 
+    client.logger.info("Start sync all operation");
+    res.end("ok");
     agent.removeAudiences()
-    .then(agent.handleShipUpdate.bind(agent))
+    .then(agent.handleShipUpdate.bind(agent, false, true))
     .then(agent.fetchSyncHullSegments.bind(agent))
     .then(segments => {
-      return Promise.all(segments.map(segment => {
-        return agent.getAudienceForSegment(segment).then(audience => {
-          return agent.requestExtract({ segment, audience });
-        });
-      }));
-    })
-    .then(() => {
-      res.end("ok");
+      client.logger.info("Request the extract for segments", segments.length);
+      if (segments.length === 0) {
+        return agent.requestExtract({});
+      }
+      return Promise.map(segments, segment => {
+        return agent.requestExtract({ segment });
+      });
     });
   }
 

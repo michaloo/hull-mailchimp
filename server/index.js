@@ -1,17 +1,16 @@
-import _ from "lodash";
 import express from "express";
 import path from "path";
 import { NotifHandler } from "hull";
 import { renderFile } from "ejs";
-
+import _ from "lodash";
 import bodyParser from "body-parser";
+
 import fetchShip from "./lib/middlewares/fetch-ship";
 import MailchimpAgent from "./lib/mailchimp-agent";
 import MailchimpClient from "./lib/mailchimp-client";
-
 import oauth from "./lib/oauth-client";
 
-export function Server() {
+export function Server({ hostSecret }) {
   const app = express();
 
   app.use(express.static(path.resolve(__dirname, "..", "dist")));
@@ -32,69 +31,45 @@ export function Server() {
     authorizationPath: "/oauth2/authorize"
   }));
 
-  const notifHandler = NotifHandler({
+  app.post("/notify", NotifHandler({
+    hostSecret,
     groupTraits: false,
-    events: {
-      "users_segment:update": MailchimpAgent.handle("handleSegmentUpdate", MailchimpClient),
-      "users_segment:delete": MailchimpAgent.handle("handleSegmentDelete", MailchimpClient),
-      "user_report:update": MailchimpAgent.handle("handleUserUpdate", MailchimpClient),
+    handlers: {
+      "segment:update": MailchimpAgent.handle("handleSegmentUpdate", MailchimpClient),
+      "segment:delete": MailchimpAgent.handle("handleSegmentDelete", MailchimpClient),
+      "user:update": MailchimpAgent.handle("handleUserUpdate", MailchimpClient),
       "ship:update": MailchimpAgent.handle("handleShipUpdate", MailchimpClient),
     }
-  });
-
-  app.post("/notify", notifHandler);
-
-  app.post("/sync", bodyParser.json(), fetchShip, (req, res) => {
-    const { ship, client } = req.hull || {};
-    const { audience } = req.query;
-    client.utils.log("request.sync", audience);
-    const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
-
-    if (!agent.isConfigured()) {
-      return res.status(403).send('Ship is not configured properly');
-    }
-
-    if (ship && audience) {
-      agent.handleExtract(req.body, users => {
-        agent.addUsersToAudience(audience, users);
-      });
-    }
-    res.end("thanks !");
-  });
+  }));
 
   app.post("/batch", bodyParser.json(), fetchShip, (req, res) => {
     const { ship, client } = req.hull || {};
     const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
-    if (ship) {
-
-      client.utils.log('request.batch');
-      if (!agent.isConfigured()) {
-        return res.status(403).send('Ship is not configured properly');
-      }
-
-      agent.getAudiencesBySegmentId().then(audiences => {
-        agent.handleExtract(req.body, users => {
-          const usersByAudience = {};
-          const filteredUsers = users.filter(agent.shouldSyncUser.bind(agent));
-
-          filteredUsers.map(user => {
-            return user.segment_ids.map(segmentId => {
-              const { audience } = audiences[segmentId] || {};
-              if (audience) {
-                usersByAudience[segmentId] = usersByAudience[segmentId] || [];
-                usersByAudience[segmentId].push(user);
-              }
-              return user;
-            });
-          });
-          _.map(usersByAudience, (audienceUsers, segmentId) => {
-            const { audience } = audiences[segmentId];
-            return agent.addUsersToAudience(audience.id, audienceUsers);
-          });
-        });
-      });
+    if (!ship || !agent.isConfigured()) {
+      return res.status(403).send("Ship is not configured properly");
     }
+
+    client.logger.info("request.batch.start", req.body);
     res.end("ok");
+    return agent.handleExtract(req.body, users => {
+      client.logger.info("request.batch.parseChunk", users.length);
+
+      const filteredUsers = users.filter((user) => {
+        return !_.isEmpty(user.email)
+          && agent.shouldSyncUser(user);
+      });
+
+      const usersToRemove = users.filter((user) => {
+        return !_.isEmpty(user["traits_mailchimp/unique_email_id"])
+            && !agent.shouldSyncUser(user);
+      });
+      client.logger.info("request.batch.filteredUsers", filteredUsers.length);
+      client.logger.info("request.batch.usersToRemove", usersToRemove.length);
+      return agent.addUsersToAudiences(filteredUsers)
+        .then(() => agent.removeUsersFromAudiences(usersToRemove));
+    }).then(() => {
+      client.logger.info("request.batch.end");
+    });
   });
 
   app.get("/manifest.json", (req, res) => {
