@@ -248,7 +248,7 @@ export default class MailchimpList extends SyncAgent {
         const batch = usersToAdd.reduce((ops, user) => {
           user.segment_ids.map(segmentId => {
             const { audience } = audiences[segmentId] || {};
-            this.hull.logger.info("addUsersToAudiences.op", user.email, audience.id);
+            this.hull.logger.info("addUsersToAudiences.op", user.email, audience.id, user.segment_ids);
             return ops.push({
               body: { email_address: user.email, status: "subscribed" },
               method: "post",
