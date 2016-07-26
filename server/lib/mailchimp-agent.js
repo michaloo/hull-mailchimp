@@ -248,6 +248,7 @@ export default class MailchimpList extends SyncAgent {
         const batch = usersToAdd.reduce((ops, user) => {
           user.segment_ids.map(segmentId => {
             const { audience } = audiences[segmentId] || {};
+            this.hull.logger.info("addUsersToAudiences.op", user.email, audience.id);
             return ops.push({
               body: { email_address: user.email, status: "subscribed" },
               method: "post",
@@ -262,6 +263,7 @@ export default class MailchimpList extends SyncAgent {
       .then(responses => {
         this.hull.logger.info("addUsersToAudiences.update", responses.length);
         return Promise.all(_.uniqBy(responses, "email_address").map((mc) => {
+          this.hull.logger.info("addUsersToAudiences.updateUser", mc.email_address);
           const user = _.find(usersToAdd, { email: mc.email_address });
           if (user) {
             // Update user's mailchimp/* traits
