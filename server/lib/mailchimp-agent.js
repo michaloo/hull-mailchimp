@@ -242,48 +242,49 @@ export default class MailchimpList extends SyncAgent {
     this.hull.logger.info("addUsersToAudiences.usersToAdd", usersToAdd.length);
 
     return this.ensureUsersSubscribed(usersToAdd)
-      .bind(this)
-      .then(this.getAudiencesBySegmentId)
-      .then(audiences => {
-        const batch = usersToAdd.reduce((ops, user) => {
-          user.segment_ids.map(segmentId => {
-            const { audience } = audiences[segmentId] || {};
-            this.hull.logger.info("addUsersToAudiences.op", user.email, audience.id, user.segment_ids);
-            return ops.push({
-              body: { email_address: user.email, status: "subscribed" },
-              method: "post",
-              path: `/lists/{list_id}/segments/${audience.id}/members`
+      .then(usersSubscribed => {
+        this.getAudiencesBySegmentId()
+          .then(audiences => {
+            const batch = usersSubscribed.reduce((ops, user) => {
+              user.segment_ids.map(segmentId => {
+                const { audience } = audiences[segmentId] || {};
+                this.hull.logger.info("addUsersToAudiences.op", user.email, audience.id, user.segment_ids);
+                return ops.push({
+                  body: { email_address: user.email, status: "subscribed" },
+                  method: "post",
+                  path: `/lists/{list_id}/segments/${audience.id}/members`
+                });
+              });
+              return ops;
+            }, []);
+            this.hull.logger.info("addUsersToAudiences.ops", batch.length);
+            return this.request(batch);
+          })
+          .then(responses => {
+            const errors = _.reject(responses, "email_address");
+            const uniqSuccess = _.filter(_.uniqBy(responses, "email_address"), "email_address");
+            this.hull.logger.info("addUsersToAudiences.update", {
+              responses: responses.length,
+              uniqSuccess: uniqSuccess.length,
+              errors: errors.length
             });
-          });
-          return ops;
-        }, []);
-        this.hull.logger.info("addUsersToAudiences.ops", batch.length);
-        return this.request(batch);
-      }, (err) => this.hull.logger.info("error.addUsersToAudiences", err))
-      .then(responses => {
-        const errors = _.reject(responses, "email_address");
-        const uniqSuccess = _.filter(_.uniqBy(responses, "email_address"), "email_address");
-        this.hull.logger.info("addUsersToAudiences.update", {
-          responses: responses.length,
-          uniqSuccess: uniqSuccess.length,
-          errors: errors.length
-        });
-        errors.map((e) => this.hull.logger.info("addUsersToAudiences.responseError", e));
-        return Promise.all(uniqSuccess.map((mc) => {
-          this.hull.logger.info("addUsersToAudiences.updateUser", mc.email_address);
-          const user = _.find(usersToAdd, { email: mc.email_address });
-          if (user) {
-            // Update user's mailchimp/* traits
-            return this.updateUser(user, mc);
-          }
-          // this warning is triggered by situation where
-          // there is not mailchimp member for selected e_mail
-          // it could happen during tests when an user has got
-          // the `traits_mailchimp/unique_email_id` trait but
-          // the testing mailchimp list was changed
-          this.hull.logger.error("addUsersToAudiences.userNotFound", mc);
-          return Promise.resolve();
-        }));
+            errors.map((e) => this.hull.logger.info("addUsersToAudiences.responseError", e));
+            return Promise.all(uniqSuccess.map((mc) => {
+              this.hull.logger.info("addUsersToAudiences.updateUser", mc.email_address);
+              const user = _.find(usersSubscribed, { email: mc.email_address });
+              if (user) {
+                // Update user's mailchimp/* traits
+                return this.updateUser(user, mc);
+              }
+              // this warning is triggered by situation where
+              // there is not mailchimp member for selected e_mail
+              // it could happen during tests when an user has got
+              // the `traits_mailchimp/unique_email_id` trait but
+              // the testing mailchimp list was changed
+              this.hull.logger.error("addUsersToAudiences.userNotFound", mc);
+              return Promise.resolve();
+            }));
+          }, (err) => this.hull.logger.info("error.addUsersToAudiences", err));
       });
   }
 
