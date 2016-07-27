@@ -22,7 +22,7 @@ describe("MailchimpClient", () => {
         });
     });
 
-    it(`should return an array in microbatch in rejected query`, () => {
+    it(`should return an error in microbatch in rejected query`, () => {
 
       class MailchimpStub {
         request(params) {
@@ -34,8 +34,8 @@ describe("MailchimpClient", () => {
       const mailchimpClient = new MailchimpClient({});
 
       return mailchimpClient.batch([{ path: "test", method: "get" }])
-        .then(res => {
-          assert.deepEqual(res, [{ err: "test" }]);
+        .catch(res => {
+          assert.deepEqual(res, { err: "test" });
         });
     });
   });

@@ -68,7 +68,6 @@ describe("MailchimpAgent", () => {
         .then(res => {
           assert.deepEqual(res, {
             id: 123,
-            isNew: true,
             type: "static",
             name: "test"
           });
