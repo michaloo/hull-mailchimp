@@ -372,7 +372,7 @@ export default class SegmentSyncAgent {
       .pipe(batch)
       .pipe(ps.map({ concurrent: 2 }, (...args) => {
         try {
-          callback(...args);
+          return callback(...args);
         } catch (e) {
           console.error(e);
           throw e;
