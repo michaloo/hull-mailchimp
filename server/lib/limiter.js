@@ -10,5 +10,5 @@ import Bottleneck from "bottleneck";
  * and set it lower than allowed since there are now some queries from admin
  * panel done outside the MailchimpClient class
  */
-const limiter = new Bottleneck.Cluster(8);
+const limiter = new Bottleneck.Cluster(6);
 export default limiter;
