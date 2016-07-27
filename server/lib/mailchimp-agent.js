@@ -3,7 +3,7 @@ import _ from "lodash";
 import crypto from "crypto";
 import SyncAgent from "./sync-agent";
 
-const batchQueueChecks = [];
+const batchQueueChecks = {};
 
 const MC_KEYS = [
   "stats.avg_open_rate",
