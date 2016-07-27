@@ -1,11 +1,12 @@
 import { Router } from "express";
 import bodyParser from "body-parser";
-import fetchShip from "./middlewares/fetch-ship";
 import oauth2Factory from "simple-oauth2";
 import rp from "request-promise";
+import Promise from "bluebird";
+
+import fetchShip from "./middlewares/fetch-ship";
 import MailchimpAgent from "./mailchimp-agent";
 import MailchimpClient from "./mailchimp-client";
-import Promise from "bluebird";
 
 export default function oauth({
   name, clientID, clientSecret,
@@ -178,7 +179,7 @@ export default function oauth({
     client.logger.info("Start sync all operation");
     res.end("ok");
     agent.removeAudiences()
-    .then(agent.handleShipUpdate.bind(agent, false))
+    .then(agent.handleShipUpdate.bind(agent, false, true))
     .then(agent.fetchSyncHullSegments.bind(agent))
     .then(segments => {
       client.logger.info("Request the extract for segments", segments.length);

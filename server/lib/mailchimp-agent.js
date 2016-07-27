@@ -3,6 +3,8 @@ import _ from "lodash";
 import crypto from "crypto";
 import SyncAgent from "./sync-agent";
 
+const batchQueueChecks = [];
+
 const MC_KEYS = [
   "stats.avg_open_rate",
   "stats.avg_click_rate",
@@ -77,23 +79,36 @@ export default class MailchimpList extends SyncAgent {
   }
 
   checkBatchQueue() {
-    const rawClient = this.getClient().client;
-
-    return rawClient.get({
+    // count greater that 100 here causes an error
+    // using an offset could be useful here, but it seems that the endpoint
+    // does not sort the batches by time
+    // so the log will present information for 100 batches
+    return this.request({
+      method: "get",
       path: "/batches",
       query: {
-        count: 1
+        count: 100,
+        fields: "batches.status,total_items"
       }
-    }).then(res => this.hull.logger.info("Queued Mailchimp Batches", res.total_items));
+    })
+    .then(res => {
+      const pending = res.batches.filter(b => b.status === "pending");
+      const started = res.batches.filter(b => b.status === "started");
+      const finished = res.batches.filter(b => b.status === "finished");
+      this.hull.logger.info("checkBatchQueue", {
+        total: res.total_items,
+        pending: pending.length,
+        started: started.length,
+        finished: finished.length
+      });
+    });
   }
 
   // Creates an audience (aka Mailchimp Segment)
-  createAudience(segment, extract = true) {
+  createAudience(segment, extract = false) {
     this.hull.logger.info("createAudience");
-    const listId = this.getClient().list_id;
-    const rawClient = this.getClient().client;
-    return rawClient.request({
-      path: `/lists/${listId}/segments`,
+    return this.request({
+      path: "/lists/{list_id}/segments",
       method: "get",
       query: {
         count: 250,
@@ -109,7 +124,7 @@ export default class MailchimpList extends SyncAgent {
 
       this._audiences = null;
       return this.request({
-        path: "segments",
+        path: "/lists/{list_id}/segments",
         body: { name: segment.name, static_segment: [] },
         method: "post"
       }).then(audience => {
@@ -135,7 +150,7 @@ export default class MailchimpList extends SyncAgent {
     }
     this._audiences = null;
     return this.request({
-      path: `segments/${audienceId}`,
+      path: `/lists/{list_id}/segments/${audienceId}`,
       method: "delete"
     }).then(() => {
       // Save audience mapping in Ship settings once the audience is removed
@@ -160,7 +175,7 @@ export default class MailchimpList extends SyncAgent {
       if (hash) {
         ops.push({
           method: "delete",
-          path: `segments/${audienceId}/members/${hash}`
+          path: `/lists/{list_id}/segments/${audienceId}/members/${hash}`
         });
       }
       return ops;
@@ -172,7 +187,7 @@ export default class MailchimpList extends SyncAgent {
    * Removes provided users from all audiences
    * TODO - try to optimize the number of batched operations,
    * right now it tries to remove users from all audiences, so the number
-   * of operation would be users * audiences
+   * of operation would be users (500 are done in one chunk) * audiences
    * @param  {Array} users
    * @return {Promise}
    */
@@ -190,7 +205,7 @@ export default class MailchimpList extends SyncAgent {
             _.map(audiences, ({ audience }) => {
               ops.push({
                 method: "delete",
-                path: `segments/${audience.id}/members/${hash}`
+                path: `/lists/{list_id}/segments/${audience.id}/members/${hash}`
               });
             });
           }
@@ -201,37 +216,19 @@ export default class MailchimpList extends SyncAgent {
   }
 
   /**
-   * Downloads all Mailchimp members list
-   * @return {Promise}
-   */
-  fetchUsers() {
-    const listId = this.getClient().list_id;
-    const rawClient = this.getClient().client;
-    return rawClient.batch({
-      method: "get",
-      path: `/lists/${listId}/members`,
-      query: {
-        count: 10000000000,
-      }
-    });
-  }
-
-  /**
    * Deletes all mapped Mailchimp Segments
    * @return {Promise}
    */
   removeAudiences() {
-    const listId = this.getClient().list_id;
-    const rawClient = this.getClient().client;
-
     this.hull.logger.info("removeAudiences");
     return this.fetchAudiences()
-      .map(segments => {
-        return rawClient.request({
+      .map(segment => {
+        this.hull.logger.info("removeAudience", segment.id);
+        return this.getClient().request({
           method: "delete",
-          path: `/lists/${listId}/segments/${segment.id}`
+          path: `/lists/{list_id}/segments/${segment.id}`
         });
-      });
+      }, { concurrency: 3 });
   }
 
   /**
@@ -245,41 +242,49 @@ export default class MailchimpList extends SyncAgent {
     this.hull.logger.info("addUsersToAudiences.usersToAdd", usersToAdd.length);
 
     return this.ensureUsersSubscribed(usersToAdd)
-      .bind(this)
-      .then(this.getAudiencesBySegmentId)
-      .then(audiences => {
-        const batch = usersToAdd.reduce((ops, user) => {
-          user.segment_ids.map(segmentId => {
-            const { audience } = audiences[segmentId] || {};
-            return ops.push({
-              body: { email_address: user.email, status: "subscribed" },
-              method: "post",
-              path: `segments/${audience.id}/members`
+      .then(usersSubscribed => {
+        this.getAudiencesBySegmentId()
+          .then(audiences => {
+            const batch = usersSubscribed.reduce((ops, user) => {
+              user.segment_ids.map(segmentId => {
+                const { audience } = audiences[segmentId] || {};
+                this.hull.logger.info("addUsersToAudiences.op", user.email, audience.id, user.segment_ids);
+                return ops.push({
+                  body: { email_address: user.email, status: "subscribed" },
+                  method: "post",
+                  path: `/lists/{list_id}/segments/${audience.id}/members`
+                });
+              });
+              return ops;
+            }, []);
+            this.hull.logger.info("addUsersToAudiences.ops", batch.length);
+            return this.request(batch);
+          })
+          .then(responses => {
+            const errors = _.reject(responses, "email_address");
+            const uniqSuccess = _.filter(_.uniqBy(responses, "email_address"), "email_address");
+            this.hull.logger.info("addUsersToAudiences.update", {
+              responses: responses.length,
+              uniqSuccess: uniqSuccess.length,
+              errors: errors.length
             });
-          });
-          return ops;
-        }, []);
-        this.hull.logger.info("addUsersToAudiences.ops", batch.length);
-        return batch;
-      })
-      .then(batch => {
-        if (batch.length === 0) {
-          return [];
-        }
-        return this.request(batch);
-      })
-      .then(responses => {
-        return _.uniqBy(responses, "email_address").map((mc) => {
-          const user = _.find(usersToAdd, { email: mc.email_address });
-          // TODO an user = undefined here this is a quick fix
-          if (user) {
-            // Update user's mailchimp/* traits
-            return this.updateUser(user, mc);
-          } else {
-            this.hull.logger.info("addUsersToAudiences.userNotFound", mc.email_address);
-          }
-          return Promise.resolve();
-        });
+            errors.map((e) => this.hull.logger.info("addUsersToAudiences.responseError", e));
+            return Promise.all(uniqSuccess.map((mc) => {
+              this.hull.logger.info("addUsersToAudiences.updateUser", mc.email_address);
+              const user = _.find(usersSubscribed, { email: mc.email_address });
+              if (user) {
+                // Update user's mailchimp/* traits
+                return this.updateUser(user, mc);
+              }
+              // this warning is triggered by situation where
+              // there is not mailchimp member for selected e_mail
+              // it could happen during tests when an user has got
+              // the `traits_mailchimp/unique_email_id` trait but
+              // the testing mailchimp list was changed
+              this.hull.logger.error("addUsersToAudiences.userNotFound", mc);
+              return Promise.resolve();
+            }));
+          }, (err) => this.hull.logger.info("error.addUsersToAudiences", err));
       });
   }
 
@@ -306,7 +311,7 @@ export default class MailchimpList extends SyncAgent {
       .map(user => {
         return {
           method: "post",
-          path: "members",
+          path: "/lists/{list_id}/members",
           body: {
             email_type: "html",
             merge_fields: {
@@ -363,6 +368,7 @@ export default class MailchimpList extends SyncAgent {
 
     // Skip update if everything is already up to date
     if (_.isEmpty(traits)) {
+      this.hull.logger.log("updateUser.alreadyUpToDate", user.id);
       return Promise.resolve({});
     }
 
@@ -372,19 +378,28 @@ export default class MailchimpList extends SyncAgent {
   getClient() {
     if (!this._client) {
       this._client = new this.MailchimpClientClass(this.getCredentials());
+
+      if (!batchQueueChecks[this._client.api_key]) {
+        batchQueueChecks[this._client.api_key] = setInterval(this.checkBatchQueue.bind(this), process.env.CHECK_BATCH_QUEUE || 30000);
+      }
     }
     return this._client;
   }
 
   request(params) {
-    this.hull.logger.info("mailchimp.request", params.length || _.get(params, "path"));
-    return this.getClient().request(params);
+    const client = this.getClient();
+    this.hull.logger.debug("mailchimp.request", params.length || _.get(params, "path"));
+    if (_.isArray(params)) {
+      return client.batch(params);
+    }
+    return client.request(params);
   }
 
   fetchAudiences() {
     return this.request({
-      path: "segments",
-      query: { type: "static", count: 100 }
+      method: "get",
+      path: "/lists/{list_id}/segments",
+      query: { type: "static", count: 250 }
     })
     .then(
       ({ segments }) => segments,
