@@ -265,11 +265,11 @@ export default class SegmentSyncAgent {
    * @param  {String} format - csv or json
    * @return {Promise}
    */
-  requestExtract({ segment = null, format = "json" }) {
+  requestExtract({ segment = null, format = "json", path = "batch" }) {
     const { hostname } = this.req;
     const search = (this.req.query || {});
     const url = URI(`https://${hostname}`)
-      .path("batch")
+      .path(path)
       .search(search)
       .toString();
 

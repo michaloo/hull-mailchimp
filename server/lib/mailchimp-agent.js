@@ -2,8 +2,10 @@ import Promise from "bluebird";
 import _ from "lodash";
 import crypto from "crypto";
 import SyncAgent from "./sync-agent";
+import CampaignAgent from "./campaign-agent";
 
-const batchQueueChecks = [];
+const batchQueueChecks = {};
+const campaingAgents = {};
 
 const MC_KEYS = [
   "stats.avg_open_rate",
@@ -405,5 +407,34 @@ export default class MailchimpList extends SyncAgent {
       ({ segments }) => segments,
       (err) => this.hull.logger.info("Error in fetchAudiences", err)
     );
+  }
+
+  getCampaignAgent() {
+    const client = this.getClient();
+    if (!campaingAgents[client.api_key]) {
+      campaingAgents[client.api_key] = new CampaignAgent(client, this.hull, this.getCredentials);
+
+      setInterval(() => {
+        campaingAgents[client.api_key].runCampaignStrategy(query => {
+          const segment = {
+            query
+          };
+          const path = "/track";
+          this.hull.logger.info("Request track extract", segment);
+          this.requestExtract({ segment, path })
+            .catch(err => console.error(err));
+        });
+      }, 3600000);
+    }
+    return campaingAgents[client.api_key];
+  }
+
+  handleUserUpdate({ user, changes = {}, segments = [] }) {
+    super.handleUserUpdate({ user, changes, segments });
+
+    // TODO exclude latest_activity traits and tracks to avoid loops
+    if (this.shouldSyncUser(user)) {
+      this.getCampaignAgent().runUserStrategy([user]);
+    }
   }
 }

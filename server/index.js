@@ -72,6 +72,25 @@ export function Server({ hostSecret }) {
     });
   });
 
+  app.post("/track", bodyParser.json(), fetchShip, (req, res) => {
+    const { ship, client } = req.hull || {};
+    const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
+    if (!ship || !agent.isConfigured()) {
+      return res.status(403).send("Ship is not configured properly");
+    }
+
+    client.logger.info("request.track.start", req.body);
+    res.end("ok");
+    return agent.handleExtract(req.body, users => {
+      client.logger.info("request.track.parseChunk", users.length);
+      const filteredUsers = users.filter((user) => {
+        return !_.isEmpty(user.email)
+          && agent.shouldSyncUser(user);
+      });
+      return agent.getCampaignAgent().runUserStrategy(filteredUsers);
+    });
+  });
+
   app.get("/manifest.json", (req, res) => {
     res.sendFile(path.resolve(__dirname, "..", "manifest.json"));
   });

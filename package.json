@@ -57,6 +57,7 @@
     "request": "^2.72.0",
     "request-promise": "^3.0.0",
     "simple-oauth2": "^0.7.0",
+    "tar-stream": "^1.5.2",
     "urijs": "^1.18.0"
   },
   "devDependencies": {
