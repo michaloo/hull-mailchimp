@@ -51,6 +51,7 @@ export function Server({ hostSecret }) {
 
     client.logger.info("request.batch.start", req.body);
     res.end("ok");
+
     return agent.handleExtract(req.body, users => {
       client.logger.info("request.batch.parseChunk", users.length);
 
@@ -63,9 +64,11 @@ export function Server({ hostSecret }) {
         return !_.isEmpty(user["traits_mailchimp/unique_email_id"])
             && !agent.shouldSyncUser(user);
       });
+
       client.logger.info("request.batch.filteredUsers", filteredUsers.length);
       client.logger.info("request.batch.usersToRemove", usersToRemove.length);
-      return agent.addUsersToAudiences(filteredUsers)
+
+      return agent.addUsersToAudiences(filteredUsers, req.query.segment_id)
         .then(() => agent.removeUsersFromAudiences(usersToRemove));
     }).then(() => {
       client.logger.info("request.batch.end");

@@ -22,11 +22,11 @@ describe("MailchimpClient", () => {
         });
     });
 
-    it(`should return an array in microbatch in rejected query`, () => {
+    it(`should return an error in microbatch in rejected query`, () => {
 
       class MailchimpStub {
         request(params) {
-          return new Promise.reject({ err: "test" });
+          return new Promise.reject("Internal server error");
         }
       }
       const MailchimpClient = proxyquire("../server/lib/mailchimp-client", { 'mailchimp-api-v3': MailchimpStub }).default;
@@ -35,7 +35,7 @@ describe("MailchimpClient", () => {
 
       return mailchimpClient.batch([{ path: "test", method: "get" }])
         .then(res => {
-          assert.deepEqual(res, [{ err: "test" }]);
+          assert.deepEqual(res, ["Internal server error"]);
         });
     });
   });

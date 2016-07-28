@@ -39,9 +39,8 @@ export default class MailchimpClient {
 
     // microbatch - when the batch consists of only 1 operation,
     // let's do it in a traditional query
-    if (!options.forceBatch && ops.length === 1) {
-      return this.request(ops.pop())
-        .then(res => [res], err => [err]);
+    if (!options.forceBatch && ops.length < 30) {
+      return Promise.all(ops.map(op => this.request(op).catch(err => err)));
     }
     ops = ops.map(this.replacePath.bind(this));
 

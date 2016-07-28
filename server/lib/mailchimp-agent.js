@@ -107,8 +107,8 @@ export default class MailchimpList extends SyncAgent {
   }
 
   // Creates an audience (aka Mailchimp Segment)
-  createAudience(segment, extract = false) {
-    this.hull.logger.info("createAudience");
+  createAudience(segment, options = {}) {
+    this.hull.logger.info("createAudience", _.pick(segment, "id", "name"));
     return this.request({
       path: "/lists/{list_id}/segments",
       method: "get",
@@ -129,20 +129,15 @@ export default class MailchimpList extends SyncAgent {
         path: "/lists/{list_id}/segments",
         body: { name: segment.name, static_segment: [] },
         method: "post"
-      }).then(audience => {
-        return (() => {
-          if (extract) {
-            return this.requestExtract({ segment, audience });
-          }
-          return Promise.resolve();
-        })()
-        .then(() => {
-          return this.saveAudienceMapping(segment.id, audience.id).then(() => {
-            return Object.assign({ isNew: true }, audience);
-          });
-        });
+      })
+      .then(audience => {
+        if (options.extract) {
+          this.requestExtract({ segment, audience });
+        }
+        return audience;
       });
-    }, (err) => this.hull.logger.info("Error in createAudience", err));
+    })
+    .catch(err => this.hull.logger.info("Error in createAudience", err));
   }
 
   // Deletes an audience (aka Mailchimp Segment)
@@ -156,7 +151,7 @@ export default class MailchimpList extends SyncAgent {
       method: "delete"
     }).then(() => {
       // Save audience mapping in Ship settings once the audience is removed
-      return this.saveAudienceMapping(segmentId, null);
+      return this.saveAudiencesMapping({ [segmentId]: null });
     }, (err) => this.hull.logger.info("Error in deleteAudience", err));
   }
 
@@ -236,58 +231,67 @@ export default class MailchimpList extends SyncAgent {
   /**
    * Ensures that all provided users are subscribed to Mailchimp,
    * then adds them to selected audience and updates Hull traits.
-   * @param {Int} audienceId
+   * @param {Array} users
+   * @param {Array} segmentIds. list of segment to add the users to
    * @return {Promise}
    */
-  addUsersToAudiences(users = []) {
-    const usersToAdd = users.filter(u => !_.isEmpty(u.email));
-    this.hull.logger.info("addUsersToAudiences.usersToAdd", usersToAdd.length);
 
-    return this.ensureUsersSubscribed(usersToAdd)
-      .then(usersSubscribed => {
-        this.getAudiencesBySegmentId()
-          .then(audiences => {
-            const batch = usersSubscribed.reduce((ops, user) => {
-              user.segment_ids.map(segmentId => {
-                const { audience } = audiences[segmentId] || {};
-                this.hull.logger.info("addUsersToAudiences.op", user.email, audience.id, user.segment_ids);
-                return ops.push({
-                  body: { email_address: user.email, status: "subscribed" },
-                  method: "post",
-                  path: `/lists/{list_id}/segments/${audience.id}/members`
-                });
-              });
-              return ops;
-            }, []);
-            this.hull.logger.info("addUsersToAudiences.ops", batch.length);
-            return this.request(batch);
-          })
-          .then(responses => {
-            const errors = _.reject(responses, "email_address");
-            const uniqSuccess = _.filter(_.uniqBy(responses, "email_address"), "email_address");
-            this.hull.logger.info("addUsersToAudiences.update", {
-              responses: responses.length,
-              uniqSuccess: uniqSuccess.length,
-              errors: errors.length
+  addUsersToAudiences(users = [], segment_id) {
+    const usersToAdd = users.filter(u => !_.isEmpty(u.email) && !_.isEmpty(u.first_name) && !_.isEmpty(u.last_name));
+    this.hull.logger.info("addUsersToAudiences.usersToAdd", { usersToAdd: usersToAdd.length, users: users.length, segment_id });
+    return Promise.all([
+      this.ensureUsersSubscribed(usersToAdd),
+      this.getAudiencesBySegmentId()
+    ])
+    .then(([usersSubscribed, audiences]) => {
+      const batch = usersSubscribed.reduce((ops, user) => {
+        const segment_ids = _.compact(_.uniq((user.segment_ids || []).concat(segment_id)));
+        const segments = _.pick(audiences, segment_ids);
+        _.each(segments, ({ audience }) => {
+          if (audience) {
+            this.hull.logger.info("addUsersToAudiences.op", { email: user.email, audienceId: audience.id, segment_ids });
+            ops.push({
+              body: { email_address: user.email, status: "subscribed" },
+              method: "post",
+              path: `/lists/{list_id}/segments/${audience.id}/members`
             });
-            errors.map((e) => this.hull.logger.info("addUsersToAudiences.responseError", e));
-            return Promise.all(uniqSuccess.map((mc) => {
-              this.hull.logger.info("addUsersToAudiences.updateUser", mc.email_address);
-              const user = _.find(usersSubscribed, { email: mc.email_address });
-              if (user) {
-                // Update user's mailchimp/* traits
-                return this.updateUser(user, mc);
-              }
-              // this warning is triggered by situation where
-              // there is not mailchimp member for selected e_mail
-              // it could happen during tests when an user has got
-              // the `traits_mailchimp/unique_email_id` trait but
-              // the testing mailchimp list was changed
-              this.hull.logger.error("addUsersToAudiences.userNotFound", mc);
-              return Promise.resolve();
-            }));
-          }, (err) => this.hull.logger.info("error.addUsersToAudiences", err));
+          }
+        });
+        return ops;
+      }, []);
+
+      return this.request(batch).then(responses => {
+        return { responses, usersSubscribed };
       });
+    })
+    .then(({ responses, usersSubscribed }) => {
+      const errors = _.reject(responses, "email_address");
+      const uniqSuccess = _.filter(_.uniqBy(responses, "email_address"), "email_address");
+      this.hull.logger.info("addUsersToAudiences.update", {
+        responses: responses.length,
+        uniqSuccess: uniqSuccess.length,
+        errors: errors.length
+      });
+      errors.map((e) => this.hull.logger.info("addUsersToAudiences.responseError", { error: e.toString(), message: e.message }));
+      return Promise.all(uniqSuccess.map((mc) => {
+        this.hull.logger.info("addUsersToAudiences.updateUser", mc.email_address);
+        const user = _.find(usersSubscribed, { email: mc.email_address });
+        if (user) {
+          // Update user's mailchimp/* traits
+          return this.updateUser(user, mc);
+        }
+        // this warning is triggered by situation where
+        // there is not mailchimp member for selected e_mail
+        // it could happen during tests when an user has got
+        // the `traits_mailchimp/unique_email_id` trait but
+        // the testing mailchimp list was changed
+        this.hull.logger.error("addUsersToAudiences.userNotFound", mc);
+        return Promise.resolve();
+      }));
+    })
+    .catch(err => {
+      this.hull.logger.info("error.addUsersToAudiences", err);
+    });
   }
 
   /**
@@ -390,10 +394,14 @@ export default class MailchimpList extends SyncAgent {
 
   request(params) {
     const client = this.getClient();
-    this.hull.logger.debug("mailchimp.request", params.length || _.get(params, "path"));
     if (_.isArray(params)) {
+      if (params.length === 0) {
+        return Promise.resolve([]);
+      }
+      this.hull.logger.info("mailchimp.batch", { ops: params.length, paths: _.uniq(_.map(params, o => [o.method, o.path].join(":"))) });
       return client.batch(params);
     }
+    this.hull.logger.debug("mailchimp.request", params);
     return client.request(params);
   }
 
