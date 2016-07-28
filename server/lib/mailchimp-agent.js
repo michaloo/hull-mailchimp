@@ -420,7 +420,7 @@ export default class MailchimpList extends SyncAgent {
   getCampaignAgent() {
     const client = this.getClient();
     if (!campaingAgents[client.api_key]) {
-      campaingAgents[client.api_key] = new CampaignAgent(client, this.hull, this.getCredentials);
+      campaingAgents[client.api_key] = new CampaignAgent(client, this.hull, this.getCredentials());
 
       setInterval(() => {
         campaingAgents[client.api_key].runCampaignStrategy(query => {
@@ -429,7 +429,7 @@ export default class MailchimpList extends SyncAgent {
           };
           const path = "/track";
           this.hull.logger.info("Request track extract", segment);
-          this.requestExtract({ segment, path })
+          return this.requestExtract({ segment, path })
             .catch(err => console.error(err));
         });
       }, 3600000);
@@ -440,8 +440,8 @@ export default class MailchimpList extends SyncAgent {
   handleUserUpdate({ user, changes = {}, segments = [] }) {
     super.handleUserUpdate({ user, changes, segments });
 
-    // TODO exclude latest_activity traits and tracks to avoid loops
-    if (this.shouldSyncUser(user)) {
+    if (this.shouldSyncUser(user)
+      && !_.isEmpty(_.get(changes, "user['traits_mailchimp/latest_activity'][1]"))) {
       this.getCampaignAgent().runUserStrategy([user]);
     }
   }

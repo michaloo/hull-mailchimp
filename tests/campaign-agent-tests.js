@@ -78,7 +78,7 @@ describe("CampaignAgent", function CampaignAgentTest() {
         .once()
         .withExactArgs([{
           method: "get",
-          path: `/lists/test/members/ffad177299613c50982e95a32c60adc7/activity`,
+          path: `/lists/{list_id}/members/ffad177299613c50982e95a32c60adc7/activity`,
         }])
         .returns(Promise.resolve([{
           activity: [ { action: 'bounce',
@@ -106,6 +106,7 @@ describe("CampaignAgent", function CampaignAgentTest() {
       const agent = new CampaignAgent(mailchimpClient, hullClient, privateSettings);
 
       return agent.getMemberActivities([{
+        id: "test",
         email_address: "bouncer@michaloo.net",
       }])
       .then(res => {
@@ -129,6 +130,7 @@ describe("CampaignAgent", function CampaignAgentTest() {
             type: 'regular',
             campaign_id: '2c4a24e9df',
             title: 'Hull bounce test' } ],
+          id: "test",
           email_address: "bouncer@michaloo.net",
           email_id: 'ffad177299613c50982e95a32c60adc7',
           list_id: '319f54214b'
@@ -143,7 +145,7 @@ describe("CampaignAgent", function CampaignAgentTest() {
         .once()
         .withExactArgs([{
           method: "get",
-          path: `/lists/test/members/ffad177299613c50982e95a32c60adc7/activity`,
+          path: `/lists/{list_id}/members/ffad177299613c50982e95a32c60adc7/activity`,
         }])
         .returns(Promise.resolve([{
           activity: [ { action: 'bounce',
@@ -171,6 +173,7 @@ describe("CampaignAgent", function CampaignAgentTest() {
       const agent = new CampaignAgent(mailchimpClient, hullClient, privateSettings);
 
       return agent.getMemberActivities([{
+        id: "test",
         email_address: "bouncer@michaloo.net",
         "traits_mailchimp/latest_activity": "2016-07-12T11:02:17+00:00"
       }])
@@ -187,6 +190,7 @@ describe("CampaignAgent", function CampaignAgentTest() {
             campaign_id: '2c4a24e9df',
             title: 'Hull bounce test'
           }],
+          id: "test",
           email_address: "bouncer@michaloo.net",
           email_id: 'ffad177299613c50982e95a32c60adc7',
           list_id: '319f54214b'

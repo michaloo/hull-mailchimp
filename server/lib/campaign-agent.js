@@ -8,6 +8,7 @@ import request from "request";
 import tar from "tar-stream";
 import zlib from "zlib";
 import ps from "promise-streams";
+import es from "event-stream";
 
 /**
  * CampaignAgent has methods to query Mailchimp for data relevant
@@ -36,9 +37,10 @@ export default class CampaignAgent {
           if (_.isEmpty(chunk)) {
             return null;
           }
-          const emails = chunk[0].map(e => {
+          const emails = chunk.map(e => {
+            const timestamps = e.activity.sort((x, y) => moment(x.timestamp) - moment(y.timestamp));
             return {
-              timestamp: _.head(e.activity).timestamp,
+              timestamp: _.last(timestamps).timestamp,
               email_address: e.email_address
             };
           });
@@ -67,8 +69,10 @@ export default class CampaignAgent {
 
   buildSegmentQuery(emails) {
     const queries = emails.map(f => {
+      // TODO range.lt traits_mailchimp/latest_activity doesn't work here
+      // verify if it's related to the data type of the trait
       // eslint-disable-next-line object-curly-spacing, quote-props, key-spacing, comma-spacing
-      return {"and":{"filters":[{"terms":{"email.exact":[f.email_address]}},{"or":{"filters":[{"range":{"traits_mailchimp/latest_activity.exact":{"lt":f.timestamp}}},{"missing":{"field":"traits_mailchimp/latest_activity"}}]}}]}};
+      return {"and":{"filters":[{"terms":{"email.exact":[f.email_address]}}/* ,{"or":{"filters":[{"range":{"traits_mailchimp/latest_activity.exact":{"lt":moment(f.timestamp).format(), "format": "date_optional_time"}}},{"missing":{"field":"traits_mailchimp/latest_activity"}}]}}*/]}};
     });
 
     return {
@@ -113,7 +117,7 @@ export default class CampaignAgent {
    * @return {Promise}
    */
   getEmailActivities(campaigns, callback) {
-    this.hull.logger.info("getEmailActivities", campaigns.length);
+    this.hull.logger.info("getEmailActivities", campaigns);
     const queries = campaigns.map(c => {
       return {
         method: "get",
@@ -124,14 +128,16 @@ export default class CampaignAgent {
 
     // we forceBatch here, because the response for small number of operation
     // can be huge and needs streaming
-    return this.client.batch(queries, { unpack: false, forceBatch: true, verbose: true })
+    return this.client.batch(queries, { unpack: false, forceBatch: true })
       .then((results) => {
         return this.handleMailchimpResponse(results)
-          .pipe(ps.map(res => {
-            return [].concat.apply([], res.map(r => r.emails))
-              .filter(r => r.activity.length > 0);
+          .pipe(es.through(function write(data) {
+            data.emails.filter(r => r.activity.length > 0)
+              .map(r => this.emit("data", r));
           }))
-          .pipe(new BatchStream({ size: 500 }))
+          // the query for extract is send as POST method so it should not be
+          // too long
+          .pipe(new BatchStream({ size: 100 }))
           .pipe(ps.map((...args) => {
             try {
               return callback(...args);
@@ -170,18 +176,21 @@ export default class CampaignAgent {
       .pipe(extract);
 
     return decoder
-      .pipe(ps.map(res => res.map(r => JSON.parse(r.response))));
+      .pipe(es.through(function write(data) {
+        data.map(r => {
+          return this.emit("data", JSON.parse(r.response));
+        });
+      }));
   }
 
   /**
    * This method downloads information for members of a selected list
    * @param  {Array} emails
-   * [{ email_address, [[email_id,] "traits_mailchimp/latest_activity"] }]
+   * [{ email_address, id, [[email_id,] "traits_mailchimp/latest_activity"] }]
    * @return {Promise}
    */
   getMemberActivities(emails) {
     this.hull.logger.info("getMemberActivities", emails.length);
-    const listId = this.credentials.mailchimp_list_id;
     const emailIds = emails.map(e => {
       e.email_id = e.email_id || this.getEmailId(e.email_address);
       return e;
@@ -189,7 +198,7 @@ export default class CampaignAgent {
     const queries = _.uniqWith(emailIds.map(e => {
       return {
         method: "get",
-        path: `/lists/${listId}/members/${e.email_id}/activity`,
+        path: `/lists/{list_id}/members/${e.email_id}/activity`,
       };
     }), _.isEqual);
 
@@ -205,6 +214,7 @@ export default class CampaignAgent {
             email_id: r.email_id,
           });
           r.email_address = emailId.email_address;
+          r.id = emailId.id;
 
           if (emailId["traits_mailchimp/latest_activity"]) {
             r.activity = r.activity.filter(a => {
@@ -212,7 +222,7 @@ export default class CampaignAgent {
             });
           }
           return r;
-        });
+        }).filter(e => e.activity.length > 0);
       });
   }
 
@@ -226,6 +236,8 @@ export default class CampaignAgent {
    * @deprecated since the getEmailActivities is done before extractRequest
    * and it's used to pass e-mail address to the track extract we can't use this
    * method anymore.
+   * If we figure out a way to pass additional information form email-activity
+   * endpoint we can join it here
    *
    * This method is responsible for filling `getMemberActivities`
    * data with more information from `getEmailActivities`
@@ -297,6 +309,7 @@ export default class CampaignAgent {
    *     campaign_id: "123",
    *     ip: "123.123.123.123"
    *   }],
+   *   id: "578fc6e644d74b10070043be",
    *   email_id: "039817b3448c634bfb35f33577e8b2b3",
    *   list_id: "319f54214b",
    *   email_address: "michaloo+4@gmail.com"
@@ -306,15 +319,16 @@ export default class CampaignAgent {
   trackEvents(emails) {
     this.hull.logger.info("trackEvents", emails.length);
     const emailTracks = emails.map(email => {
-      const user = this.hull.as({ email: email.email_address });
-      return email.activity.map(a => {
+      // TODO: passing { email } below creates new account at hull
+      const user = this.hull.as(email.id);
+      return Promise.all(email.activity.map(a => {
         // TODO: pass this uniqId to hull.track call
         // eslint-disable-next-line no-unused-vars
         const uniqId = Buffer.from(
           [email.email_address, a.type, a.timestamp].join(),
           "utf8"
         ).toString("base64");
-
+        this.hull.logger.info("trackEvents.track", email.email_address, a.action);
         return user.track(a.action, {
           type: a.type || "",
           title: a.title || "",
@@ -322,17 +336,24 @@ export default class CampaignAgent {
           campaign_id: a.campaign_id,
         }, {
           source: "mailchimp",
-          ip: a.ip,
+          // ip: a.ip,
           created_at: a.timestamp
-        })
-        .then(() => {
-          return user.traits({
-            latest_activity: a.timestamp
-          }, { source: "mailchimp" });
-        });
+        }).then(() => a.timestamp);
+      }))
+      .then((timestamps) => {
+        if (timestamps.length === 0) {
+          return true;
+        }
+        const latest = timestamps.sort((x, y) => moment(x) - moment(y)).pop();
+        this.hull.logger.info("trackEvents.latest_activity", email.email_address, latest);
+
+        // TODO: created trait is not considered in Hull as Date
+        return user.traits({
+          latest_activity: moment(latest)
+        }, { source: "mailchimp" });
       });
     });
 
-    return Promise.all([].concat.apply([], emailTracks));
+    return Promise.all(emailTracks);
   }
 }

@@ -86,11 +86,13 @@ export function Server({ hostSecret }) {
     res.end("ok");
     return agent.handleExtract(req.body, users => {
       client.logger.info("request.track.parseChunk", users.length);
-      const filteredUsers = users.filter((user) => {
-        return !_.isEmpty(user.email)
-          && agent.shouldSyncUser(user);
-      });
-      return agent.getCampaignAgent().runUserStrategy(filteredUsers);
+      // TODO: decide if to filter users here
+      // is the extract user.segment_ids update?
+      // const filteredUsers = users.filter((user) => {
+      //   return !_.isEmpty(user.email)
+      //     && agent.shouldSyncUser(user);
+      // });
+      return agent.getCampaignAgent().runUserStrategy(users);
     });
   });
 
