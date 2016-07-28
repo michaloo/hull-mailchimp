@@ -11,10 +11,10 @@ import ps from "promise-streams";
 import es from "event-stream";
 
 /**
- * CampaignAgent has methods to query Mailchimp for data relevant
+ * EventsAgent has methods to query Mailchimp for data relevant
  * for Hull Track API and to call Track API Endpoint
  */
-export default class CampaignAgent {
+export default class EventsAgent {
 
   constructor(mailchimpClient, hull, credentials) {
     this.client = mailchimpClient;
@@ -25,7 +25,7 @@ export default class CampaignAgent {
   /**
    * Gets information from campaigns about email activies and prepares
    * query to create hull extracts. Takes a callback which is called
-   * for 500 emails chunkes with prepared elastic search query.
+   * for 100 emails chunkes with prepared elastic search query.
    * @api
    * @param  {Function} callback
    * @return {Promise}
@@ -69,10 +69,10 @@ export default class CampaignAgent {
 
   buildSegmentQuery(emails) {
     const queries = emails.map(f => {
-      // TODO range.lt traits_mailchimp/latest_activity doesn't work here
-      // verify if it's related to the data type of the trait
+      // TODO range.lt traits_mailchimp/latest_activity_at doesn't work here
+      // right now it requests extract without checking latest_activity_at
       // eslint-disable-next-line object-curly-spacing, quote-props, key-spacing, comma-spacing
-      return {"and":{"filters":[{"terms":{"email.exact":[f.email_address]}}/* ,{"or":{"filters":[{"range":{"traits_mailchimp/latest_activity.exact":{"lt":moment(f.timestamp).format(), "format": "date_optional_time"}}},{"missing":{"field":"traits_mailchimp/latest_activity"}}]}}*/]}};
+      return {"and":{"filters":[{"terms":{"email.exact":[f.email_address]}}/* ,{"or":{"filters":[{"range":{"traits_mailchimp/latest_activity_at.exact":{"lt":moment(f.timestamp).format()}}},{"missing":{"field":"traits_mailchimp/latest_activity_at"}}]}}*/]}};
     });
 
     return {
@@ -186,7 +186,7 @@ export default class CampaignAgent {
   /**
    * This method downloads information for members of a selected list
    * @param  {Array} emails
-   * [{ email_address, id, [[email_id,] "traits_mailchimp/latest_activity"] }]
+   * [{ email_address, id, [[email_id,] "traits_mailchimp/latest_activity_at"] }]
    * @return {Promise}
    */
   getMemberActivities(emails) {
@@ -216,9 +216,9 @@ export default class CampaignAgent {
           r.email_address = emailId.email_address;
           r.id = emailId.id;
 
-          if (emailId["traits_mailchimp/latest_activity"]) {
+          if (emailId["traits_mailchimp/latest_activity_at"]) {
             r.activity = r.activity.filter(a => {
-              return moment(a.timestamp).isAfter(emailId["traits_mailchimp/latest_activity"]);
+              return moment(a.timestamp).isAfter(emailId["traits_mailchimp/latest_activity_at"]);
             });
           }
           return r;
@@ -345,11 +345,10 @@ export default class CampaignAgent {
           return true;
         }
         const latest = timestamps.sort((x, y) => moment(x) - moment(y)).pop();
-        this.hull.logger.info("trackEvents.latest_activity", email.email_address, latest);
+        this.hull.logger.info("trackEvents.latest_activity_at", email.email_address, latest);
 
-        // TODO: created trait is not considered in Hull as Date
         return user.traits({
-          latest_activity: moment(latest)
+          latest_activity_at: moment(latest)
         }, { source: "mailchimp" });
       });
     });

@@ -2,10 +2,10 @@ import Promise from "bluebird";
 import _ from "lodash";
 import crypto from "crypto";
 import SyncAgent from "./sync-agent";
-import CampaignAgent from "./campaign-agent";
+import EventsAgent from "./events-agent";
 
 const batchQueueChecks = {};
-const campaingAgents = {};
+const eventsAgents = {};
 
 const MC_KEYS = [
   "stats.avg_open_rate",
@@ -417,13 +417,13 @@ export default class MailchimpList extends SyncAgent {
     );
   }
 
-  getCampaignAgent() {
+  getEventsAgent() {
     const client = this.getClient();
-    if (!campaingAgents[client.api_key]) {
-      campaingAgents[client.api_key] = new CampaignAgent(client, this.hull, this.getCredentials());
+    if (!eventsAgents[client.api_key]) {
+      eventsAgents[client.api_key] = new EventsAgent(client, this.hull, this.getCredentials());
 
-      setInterval(() => {
-        campaingAgents[client.api_key].runCampaignStrategy(query => {
+      // setInterval(() => {
+        eventsAgents[client.api_key].runCampaignStrategy(query => {
           const segment = {
             query
           };
@@ -432,17 +432,17 @@ export default class MailchimpList extends SyncAgent {
           return this.requestExtract({ segment, path })
             .catch(err => console.error(err));
         });
-      }, 3600000);
+      // }, 3600000);
     }
-    return campaingAgents[client.api_key];
+    return eventsAgents[client.api_key];
   }
 
   handleUserUpdate({ user, changes = {}, segments = [] }) {
     super.handleUserUpdate({ user, changes, segments });
 
     if (this.shouldSyncUser(user)
-      && _.isEmpty(_.get(changes, "user['traits_mailchimp/latest_activity'][1]"))) {
-      this.getCampaignAgent().runUserStrategy([user]);
+      && _.isEmpty(_.get(changes, "user['traits_mailchimp/latest_activity_at'][1]"))) {
+      this.getEventsAgent().runUserStrategy([user]);
     }
   }
 }

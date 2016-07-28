@@ -6,7 +6,7 @@ import moment from "moment";
 import Hull from "hull";
 
 import MailchimpClient from "../server/lib/mailchimp-client";
-import CampaignAgent from "../server/lib/campaign-agent";
+import EventsAgent from "../server/lib/events-agent";
 
 const mailchimpClient = {
   request: function() {},
@@ -20,7 +20,7 @@ const hullClient = {
 };
 const hullClientMock = sinon.mock(hullClient);
 
-describe("CampaignAgent", function CampaignAgentTest() {
+describe("EventsAgent", function EventsAgentTest() {
   this.timeout(100000);
 
   const privateSettings = {
@@ -55,7 +55,7 @@ describe("CampaignAgent", function CampaignAgentTest() {
           ]
         }));
 
-      const agent = new CampaignAgent(mailchimpClient, hullClient, privateSettings);
+      const agent = new EventsAgent(mailchimpClient, hullClient, privateSettings);
 
       return agent.getTrackableCampaigns()
         .then(res => {
@@ -103,7 +103,7 @@ describe("CampaignAgent", function CampaignAgentTest() {
           list_id: '319f54214b',
         }]));
 
-      const agent = new CampaignAgent(mailchimpClient, hullClient, privateSettings);
+      const agent = new EventsAgent(mailchimpClient, hullClient, privateSettings);
 
       return agent.getMemberActivities([{
         id: "test",
@@ -138,7 +138,7 @@ describe("CampaignAgent", function CampaignAgentTest() {
       });
     });
 
-    it("should return activites more recent than latest_activity", () => {
+    it("should return activites more recent than latest_activity_at", () => {
 
       const mailchimpClientMock = sinon.mock(mailchimpClient);
       mailchimpClientMock.expects("batch")
@@ -170,12 +170,12 @@ describe("CampaignAgent", function CampaignAgentTest() {
           list_id: '319f54214b',
         }]));
 
-      const agent = new CampaignAgent(mailchimpClient, hullClient, privateSettings);
+      const agent = new EventsAgent(mailchimpClient, hullClient, privateSettings);
 
       return agent.getMemberActivities([{
         id: "test",
         email_address: "bouncer@michaloo.net",
-        "traits_mailchimp/latest_activity": "2016-07-12T11:02:17+00:00"
+        "traits_mailchimp/latest_activity_at": "2016-07-12T11:02:17+00:00"
       }])
       .then(res => {
         mailchimpClientMock.verify();

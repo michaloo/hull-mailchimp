@@ -92,7 +92,7 @@ export function Server({ hostSecret }) {
       //   return !_.isEmpty(user.email)
       //     && agent.shouldSyncUser(user);
       // });
-      return agent.getCampaignAgent().runUserStrategy(users);
+      return agent.getEventsAgent().runUserStrategy(users);
     });
   });
 
