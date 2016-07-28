@@ -441,7 +441,7 @@ export default class MailchimpList extends SyncAgent {
     super.handleUserUpdate({ user, changes, segments });
 
     if (this.shouldSyncUser(user)
-      && !_.isEmpty(_.get(changes, "user['traits_mailchimp/latest_activity'][1]"))) {
+      && _.isEmpty(_.get(changes, "user['traits_mailchimp/latest_activity'][1]"))) {
       this.getCampaignAgent().runUserStrategy([user]);
     }
   }
