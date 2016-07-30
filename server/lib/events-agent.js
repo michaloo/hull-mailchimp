@@ -41,6 +41,7 @@ export default class EventsAgent {
             const timestamps = e.activity.sort((x, y) => moment(x.timestamp) - moment(y.timestamp));
             return {
               timestamp: _.last(timestamps).timestamp,
+              email_id: e.email_id,
               email_address: e.email_address
             };
           });
@@ -72,7 +73,7 @@ export default class EventsAgent {
       // TODO range.lt traits_mailchimp/latest_activity_at doesn't work here
       // right now it requests extract without checking latest_activity_at
       // eslint-disable-next-line object-curly-spacing, quote-props, key-spacing, comma-spacing
-      return {"and":{"filters":[{"terms":{"email.exact":[f.email_address]}}/* ,{"or":{"filters":[{"range":{"traits_mailchimp/latest_activity_at.exact":{"lt":moment(f.timestamp).format()}}},{"missing":{"field":"traits_mailchimp/latest_activity_at"}}]}}*/]}};
+      return {"and":{"filters":[{"terms":{"email.exact":[f.email_address]}},{"or":{"filters":[{"range":{"traits_mailchimp/latest_activity_at":{"lt":moment(f.timestamp).format()}}},{"missing":{"field":"traits_mailchimp/latest_activity_at"}}]}}]}};
     });
 
     return {
@@ -137,7 +138,7 @@ export default class EventsAgent {
           }))
           // the query for extract is send as POST method so it should not be
           // too long
-          .pipe(new BatchStream({ size: 100 }))
+          .pipe(new BatchStream({ size: 10000 }))
           .pipe(ps.map((...args) => {
             try {
               return callback(...args);

@@ -303,7 +303,7 @@ export default class SegmentSyncAgent {
    * @param  {String} format - csv or json
    * @return {Promise}
    */
-  requestExtract({ segment = null, format = "json", path = "batch" }) {
+  requestExtract({ segment = null, format = "json", path = "batch", fields = [] }) {
     const { hostname } = this.req;
     const search = (this.req.query || {});
     if (segment) {
@@ -314,7 +314,9 @@ export default class SegmentSyncAgent {
       .search(search)
       .toString();
 
-    const fields = this._getExtractFields();
+    if (_.isEmpty(fields)) {
+      fields = this._getExtractFields();
+    }
 
     return (() => {
       if (segment == null) {

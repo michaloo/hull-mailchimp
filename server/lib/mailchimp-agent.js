@@ -428,8 +428,15 @@ export default class MailchimpList extends SyncAgent {
             query
           };
           const path = "/track";
+          const format = "csv";
+          const fields = [
+            "id",
+            "email",
+            "traits_mailchimp/latest_activity_at",
+            "traits_mailchimp/unique_email_id"
+          ];
           this.hull.logger.info("Request track extract", segment);
-          return this.requestExtract({ segment, path })
+          return this.requestExtract({ segment, path, format, fields })
             .catch(err => console.error(err));
         });
       // }, 3600000);
