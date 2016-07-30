@@ -422,7 +422,7 @@ export default class MailchimpList extends SyncAgent {
     if (!eventsAgents[client.api_key]) {
       eventsAgents[client.api_key] = new EventsAgent(client, this.hull, this.getCredentials());
 
-      // setInterval(() => {
+      setInterval(() => {
         eventsAgents[client.api_key].runCampaignStrategy(query => {
           const segment = {
             query
@@ -439,7 +439,7 @@ export default class MailchimpList extends SyncAgent {
           return this.requestExtract({ segment, path, format, fields })
             .catch(err => console.error(err));
         });
-      // }, 3600000);
+      }, 3600000);
     }
     return eventsAgents[client.api_key];
   }
