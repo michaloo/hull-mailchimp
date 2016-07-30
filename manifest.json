@@ -2,7 +2,7 @@
 {
   "name": "Mailchimp",
   "description": "Synchronize Segments as Mailchimp Lists",
-  "tags": ["outgoing", "batch"],
+  "tags": ["outgoing", "incoming", "batch"],
   "picture": "picture.png",
   "admin" : "/auth/",
   "version": "0.0.1",
