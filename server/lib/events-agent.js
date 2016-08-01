@@ -86,7 +86,7 @@ export default class EventsAgent {
   buildSegmentQuery(emails) {
     const queries = emails.map(f => {
       // eslint-disable-next-line object-curly-spacing, quote-props, key-spacing, comma-spacing
-      return {"and":{"filters":[{"terms":{"email.exact":[f.email_address]}},{"or":{"filters":[{"range":{"traits_mailchimp/latest_activity_at":{"lt":moment(f.timestamp).format()}}},{"missing":{"field":"traits_mailchimp/latest_activity_at"}}]}}]}};
+      return {"and":{"filters":[{"terms":{"email.exact":[f.email_address]}},{"or":{"filters":[{"range":{"traits_mailchimp/latest_activity_at":{"lt":moment(f.timestamp).utc().format()}}},{"missing":{"field":"traits_mailchimp/latest_activity_at"}}]}}]}};
     });
 
     return {
@@ -244,7 +244,7 @@ export default class EventsAgent {
 
           if (emailId["traits_mailchimp/latest_activity_at"]) {
             r.activity = r.activity.filter(a => {
-              return moment(a.timestamp).isAfter(emailId["traits_mailchimp/latest_activity_at"]);
+              return moment(a.timestamp).utc().isAfter(emailId["traits_mailchimp/latest_activity_at"]);
             });
           }
           return r;
@@ -305,7 +305,7 @@ export default class EventsAgent {
         this.hull.logger.info("trackEvents.latest_activity_at", email.email_address, latest);
 
         return user.traits({
-          latest_activity_at: moment(latest)
+          latest_activity_at: moment(latest).utc()
         }, { source: "mailchimp" });
       });
     });
