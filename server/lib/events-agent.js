@@ -12,7 +12,8 @@ import es from "event-stream";
 
 /**
  * EventsAgent has methods to query Mailchimp for data relevant
- * for Hull Track API and to call Track API Endpoint
+ * for Hull Track API.
+ * It exposes two main public methods `runCampaignStrategy`, `runUserStrategy`.
  */
 export default class EventsAgent {
 
@@ -24,9 +25,13 @@ export default class EventsAgent {
 
   /**
    * Gets information from campaigns about email activies and prepares
-   * query to create hull extracts. Takes a callback which is called
-   * for 100 emails chunkes with prepared elastic search query.
+   * query to create hull extracts for users who have activities in mailchimp.
+   * As a param it takes a callback which is called for every 10000 emails chunkes
+   * with prepared elastic search query.
+   * It decides about the timestamp for `traits_mailchimp/latest_activity_at`.
+   * The query is build by `buildSegmentQuery` method.
    * @api
+   * @see buildSegmentQuery
    * @param  {Function} callback
    * @return {Promise}
    */
@@ -40,7 +45,7 @@ export default class EventsAgent {
           const emails = chunk.map(e => {
             const timestamps = e.activity.sort((x, y) => moment(x.timestamp) - moment(y.timestamp));
             return {
-              timestamp: _.last(timestamps).timestamp,
+              timestamp: _.get(_.last(timestamps), "timestamp", e.campaign_send_time),
               email_id: e.email_id,
               email_address: e.email_address
             };
@@ -53,9 +58,11 @@ export default class EventsAgent {
   }
 
   /**
-   * Gets information for a e-mail address from Mailchimp
-   * and triggers Hull.track api endpoint
+   * Gets information from Mailchimp about member activities for provided e-mail addresses
+   * and triggers Hull.track api endpoint.
    * @api
+   * @see getMemberActivities
+   * @see trackEvents
    * @param  {Array} hullUsers
    * @return {Promise}
    */
@@ -68,10 +75,16 @@ export default class EventsAgent {
       .then(this.trackEvents.bind(this));
   }
 
+  /**
+   * Takes prepares requestExtract elastic search query to select users
+   * which should be updated with events.
+   * It build an OR clause of provided email addresses with optional constraint
+   * of traits_mailchimp/latest_activity_at
+   * @param  {Array} emails
+   * @return {Object}
+   */
   buildSegmentQuery(emails) {
     const queries = emails.map(f => {
-      // TODO range.lt traits_mailchimp/latest_activity_at doesn't work here
-      // right now it requests extract without checking latest_activity_at
       // eslint-disable-next-line object-curly-spacing, quote-props, key-spacing, comma-spacing
       return {"and":{"filters":[{"terms":{"email.exact":[f.email_address]}},{"or":{"filters":[{"range":{"traits_mailchimp/latest_activity_at":{"lt":moment(f.timestamp).format()}}},{"missing":{"field":"traits_mailchimp/latest_activity_at"}}]}}]}};
     });
@@ -99,7 +112,7 @@ export default class EventsAgent {
     return this.client.request({
       path: "/campaigns",
       query: {
-        fields: "campaigns.id,campaigns.status,campaigns.title",
+        fields: "campaigns.id,campaigns.status,campaigns.title,campaigns.send_time",
         list_id: this.credentials.mailchimp_list_id,
         since_send_time: weekAgo.format()
       },
@@ -111,8 +124,8 @@ export default class EventsAgent {
 
   /**
    * Takes a list of campaigns to check, then downloads the emails activities
-   * and then flattens it to return one array for all campaigns requested.
-   * Returns only emails with some activities.
+   * and then flattens it to return one array for all emails of all campaigns requested.
+   * It also adds `campaign_send_time` parameter from campaign to the email infromation.
    * @param  {Array} campaigns
    * @param  {Function} callback
    * @return {Promise}
@@ -133,8 +146,11 @@ export default class EventsAgent {
       .then((results) => {
         return this.handleMailchimpResponse(results)
           .pipe(es.through(function write(data) {
-            data.emails.filter(r => r.activity.length > 0)
-              .map(r => this.emit("data", r));
+            data.emails.map(r => {
+              const campaign = _.find(campaigns, { id: r.campaign_id });
+              r.campaign_send_time = campaign.send_time;
+              return this.emit("data", r);
+            });
           }))
           // the query for extract is send as POST method so it should not be
           // too long
@@ -185,7 +201,16 @@ export default class EventsAgent {
   }
 
   /**
-   * This method downloads information for members of a selected list
+   * This method downloads from Mailchimp information for members.
+   * If the latest activity infromation is provided for an user the returned
+   * array will be filtered to include only events which happened after the time.
+   * The array provided as param needs two required parameters:
+   * - `email_address` (user email address)
+   * - `id` (Hull user ID)
+   * It also can take optional params:
+   * - `email_id` the MD5 of the `email_address`
+   * - `traits_mailchimp/latest_activity_at` if provided it will be used to filter
+   * the returned array
    * @param  {Array} emails
    * [{ email_address, id, [[email_id,] "traits_mailchimp/latest_activity_at"] }]
    * @return {Promise}
@@ -234,72 +259,9 @@ export default class EventsAgent {
   }
 
   /**
-   * @deprecated since the getEmailActivities is done before extractRequest
-   * and it's used to pass e-mail address to the track extract we can't use this
-   * method anymore.
-   * If we figure out a way to pass additional information form email-activity
-   * endpoint we can join it here
-   *
-   * This method is responsible for filling `getMemberActivities`
-   * data with more information from `getEmailActivities`
-   * namely the email_address and ip information of "open" action
-   * @param  {Array} activities result of getEmailActivities
-   * [{
-   *   campaign_id: "2c4a24e9df",
-   *   list_id: "319f54214b",
-   *   email_id: "039817b3448c634bfb35f33577e8b2b3",
-   *   email_address: "michaloo+4@gmail.com",
-   *   activity: [{
-   *     action: "bounce",
-   *     type: "hard",
-   *     timestamp: "2016-07-12T00:00:00+00:00"
-   *   }]
-   * }]
-   * @param  {Array} members result of getMemberActivities
-   * [{
-   *   email_id: "039817b3448c634bfb35f33577e8b2b3",
-   *   list_id: "319f54214b",
-   *   activity: [{
-   *     action: "sent",
-   *     timestamp: "2016-07-12T11:07:57+00:00",
-   *     type: "regular",
-   *     campaign_id: "6cfe5bf893",
-   *     title: "test123"
-   *   }]
-   * }]
-   * @return {Promise}
-   */
-  joinData(emails, members) {
-    emails.forEach(e => {
-      const member = _.find(members, { email_id: e.email_id });
-      if (!member) {
-        return null;
-      }
-      member.email_address = e.email_address;
-
-      e.activity.forEach(a => {
-        const m = _.find(members, {
-          email_id: e.email_id,
-        });
-        if (m) {
-          const memberActivity = _.find(m.activity, {
-            timestamp: a.timestamp,
-            action: a.action
-          });
-
-          if (a.ip && !memberActivity.ip) {
-            memberActivity.ip = a.ip;
-          }
-        }
-      });
-      return e;
-    });
-
-    return members;
-  }
-
-  /**
    * For every provided email and its activity call Hull Track endpoint.
+   * After calling the track endpoint it saves the latest event timestamp
+   * as `traits_mailchimp/latest_activity_at`.
    * @param  {Array} emails
    * [{
    *   activity: [{
@@ -320,15 +282,9 @@ export default class EventsAgent {
   trackEvents(emails) {
     this.hull.logger.info("trackEvents", emails.length);
     const emailTracks = emails.map(email => {
-      // TODO: passing { email } below creates new account at hull
       const user = this.hull.as(email.id);
       return Promise.all(email.activity.map(a => {
-        // TODO: pass this uniqId to hull.track call
-        // eslint-disable-next-line no-unused-vars
-        const uniqId = Buffer.from(
-          [email.email_address, a.type, a.timestamp].join(),
-          "utf8"
-        ).toString("base64");
+        const uniqId = this.getUniqId({ email, activity: a });
         this.hull.logger.info("trackEvents.track", email.email_address, a.action);
         return user.track(a.action, {
           type: a.type || "",
@@ -337,7 +293,7 @@ export default class EventsAgent {
           campaign_id: a.campaign_id,
         }, {
           source: "mailchimp",
-          // ip: a.ip,
+          event_id: uniqId,
           created_at: a.timestamp
         }).then(() => a.timestamp);
       }))
@@ -355,5 +311,10 @@ export default class EventsAgent {
     });
 
     return Promise.all(emailTracks);
+  }
+
+  getUniqId({ email, activity }) {
+    const uniqString = [email.email_address, activity.type, activity.timestamp].join();
+    return Buffer.from(uniqString, "utf8").toString("base64");
   }
 }

@@ -35,7 +35,7 @@ describe("EventsAgent", function EventsAgentTest() {
         .withExactArgs({
           path: "/campaigns",
           query: {
-            fields: "campaigns.id,campaigns.status,campaigns.title",
+            fields: "campaigns.id,campaigns.status,campaigns.title,campaigns.send_time",
             list_id: privateSettings.mailchimp_list_id,
             since_send_time: moment().subtract(1, "week").format()
           },

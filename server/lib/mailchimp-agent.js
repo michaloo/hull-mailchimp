@@ -417,36 +417,53 @@ export default class MailchimpList extends SyncAgent {
     );
   }
 
+  /**
+   * Returns a cached instance of EventsAgent and also sets the scheduler
+   * for periodic check for new events
+   * @return {Object} instance of EventsAgent
+   */
   getEventsAgent() {
     const client = this.getClient();
     if (!eventsAgents[client.api_key]) {
       eventsAgents[client.api_key] = new EventsAgent(client, this.hull, this.getCredentials());
 
-      setInterval(() => {
-        eventsAgents[client.api_key].runCampaignStrategy(query => {
-          const segment = {
-            query
-          };
-          const path = "/track";
-          const format = "csv";
-          const fields = [
-            "id",
-            "email",
-            "traits_mailchimp/latest_activity_at",
-            "traits_mailchimp/unique_email_id"
-          ];
-          this.hull.logger.info("Request track extract", segment);
-          return this.requestExtract({ segment, path, format, fields })
-            .catch(err => console.error(err));
-        });
-      }, 3600000);
+      setInterval(this.handleRequestTrackExtract.bind(this), 3600000);
     }
     return eventsAgents[client.api_key];
+  }
+
+  /**
+   * It runs the EventsAgent.runCampaignStrategy with a callback which calls
+   * an extract to get information for members to track Mailchimp activity on them.
+   * The query which is passed to the callback will select only user which
+   * latest tracked activity is older than activity from Mailchimp
+   *
+   * @return {Promise}
+   */
+  handleRequestTrackExtract() {
+    const eventsAgent = this.getEventsAgent();
+    eventsAgent.runCampaignStrategy(query => {
+      const segment = {
+        query
+      };
+      const path = "/track";
+      const format = "csv";
+      const fields = [
+        "id",
+        "email",
+        "traits_mailchimp/latest_activity_at",
+        "traits_mailchimp/unique_email_id"
+      ];
+      this.hull.logger.info("Request track extract");
+      return this.requestExtract({ segment, path, format, fields })
+        .catch(err => console.error(err));
+    });
   }
 
   handleUserUpdate({ user, changes = {}, segments = [] }) {
     super.handleUserUpdate({ user, changes, segments });
 
+    // exclude updates related to mailchimp events send to avoid possible loop
     if (this.shouldSyncUser(user)
       && _.isEmpty(_.get(changes, "user['traits_mailchimp/latest_activity_at'][1]"))) {
       this.getEventsAgent().runUserStrategy([user]);
