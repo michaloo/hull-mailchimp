@@ -37,7 +37,7 @@ export function Server({ hostSecret }) {
     handlers: {
       "segment:update": MailchimpAgent.handle("handleSegmentUpdate", MailchimpClient),
       "segment:delete": MailchimpAgent.handle("handleSegmentDelete", MailchimpClient),
-      "user:update": MailchimpAgent.handle("handleUserUpdate", MailchimpClient),
+      // "user:update": MailchimpAgent.handle("handleUserUpdate", MailchimpClient),
       "ship:update": MailchimpAgent.handle("handleShipUpdate", MailchimpClient),
     }
   }));
