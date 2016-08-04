@@ -314,15 +314,21 @@ export default class EventsAgent {
     return Promise.all(emailTracks);
   }
 
+  /**
+   * Generate unique id for an event
+   * @param  {Object} email
+   * @param  {Object} activity
+   * @return {String}
+   */
   getUniqId({ email, activity }) {
     const uniqString = [email.email_address, activity.type, activity.timestamp].join();
     return Buffer.from(uniqString, "utf8").toString("base64");
   }
 
   /**
-   * Implements data structure from Segment documentation.
+   * Implements events nameing from Segment documentation.
    * Mailchimp doesn't provide information for `Email Marked as Spam`
-   * and `Email Delivered` events
+   * and `Email Delivered` events.
    * @see https://segment.com/docs/spec/email/#email-delivered
    * @param  {Object} activity
    * @return {String}
@@ -340,6 +346,8 @@ export default class EventsAgent {
   }
 
   /**
+   * Implements data structure from Segment documentation.
+   *
    * @param  {Object} activity
    * @return {Object}
    */
