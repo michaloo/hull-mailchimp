@@ -1,7 +1,7 @@
 version: '2'
 services:
     node-cli:
-        image: node
+        image: node:5
         env_file: .env
         command: bash
         working_dir: /app
@@ -10,7 +10,7 @@ services:
         volumes:
             - .:/app
     watch:
-        image: node
+        image: node:5
         env_file: .env
         command: npm run watch
         working_dir: /app

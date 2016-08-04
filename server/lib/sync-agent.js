@@ -19,10 +19,10 @@ export default class SegmentSyncAgent {
   /** Interface to implement :
   * - _getCredentialKeys
   * - fetchAudiences
-  * - createAudience
+  * - createAudiences
   * - deleteAudience
   * - removeUsersFromAudience
-  * - addUsersToAudience
+  * - addUsersToAudiences
   */
 
  /**
@@ -44,12 +44,36 @@ export default class SegmentSyncAgent {
   /**
    * Create an audience from a segment
    * @param  {Object} segment - A segment
-   * @param  {Boolean} extract - Start an extract job to batch sync the segment
+   * @param  {Boolean} options.extract - Start an extract job to batch sync the segment
+   * @param  {Boolean} options.save - Save in ship's mapping
    * @return {Promise -> audience}
    */
-  createAudience(segment, extract = true) {
+  createAudience(segment, options = { extract: false }) { // eslint-disable-line no-unused-vars
     throw new Error("Not Implemented");
   }
+
+  /**
+   * Create audiences from a list of segments and saves their IDs in the ship's mapping
+   * @param  {Object} segment - A segment
+   * @param  {Boolean} options.extract - Start an extract job to batch sync the segment
+   * @param  {Boolean} options.reset - Reset the ship's mapping settings
+   * @return {Promise -> audience}
+   */
+  createAudiences(segments, options) {
+    const ops = segments.map(segment =>
+      this.createAudience(segment, options)
+        .then(audience => { return { segment, audience }; })
+    );
+    return Promise.all(ops).then(results => {
+      const mapping = results.reduce((memo, { segment, audience }) => {
+        return { ...memo, [segment.id]: audience.id };
+      }, {});
+
+      return this.saveAudiencesMapping(mapping, options.reset)
+        .then(() => results);
+    });
+  }
+
 
   /**
    * Delete an audience a segment
@@ -57,7 +81,7 @@ export default class SegmentSyncAgent {
    * @param  {String} segmentId - A segment ID
    * @return {Promise -> audience}
    */
-  deleteAudience(audienceId, segmentId) {
+  deleteAudience(audienceId, segmentId) { // eslint-disable-line no-unused-vars
     throw new Error("Not Implemented");
   }
 
@@ -67,7 +91,7 @@ export default class SegmentSyncAgent {
    * @param  {Array<user>} users - A list of users
    * @return {Promise}
    */
-  removeUsersFromAudience(audienceId, users = []) {
+  removeUsersFromAudience(audienceId, users = []) { // eslint-disable-line no-unused-vars
     throw new Error("Not Implemented");
   }
 
@@ -77,7 +101,7 @@ export default class SegmentSyncAgent {
    * @param  {Array<user>} users - A list of users
    * @return {Promise}
    */
-  addUsersToAudience(audienceId, users = []) {
+  addUsersToAudience(audienceId, users = []) { // eslint-disable-line no-unused-vars
     throw new Error("Not Implemented");
   }
 
@@ -143,11 +167,12 @@ export default class SegmentSyncAgent {
    * Returns the audience mapped to a segment
    * creates it if it does not exist
    * @param  {Object} segment - A segment
+   * @param  {Object} options - options
    * @return {Object} audience
    */
-  getOrCreateAudienceForSegment(segment) {
+  getOrCreateAudienceForSegment(segment, options = {}) {
     return this.getAudienceForSegment(segment).then(
-      audience => audience || this.createAudience(segment)
+      audience => audience || this.createAudiences([segment], options).then(res => res[0])
     );
   }
 
@@ -157,12 +182,25 @@ export default class SegmentSyncAgent {
    * defined in the ship's settings exist
    * @return {Promise}
    */
-  handleShipUpdate(extract = true) {
+  handleShipUpdate(extract = true, create = false) {
     this.hull.logger.info("handleShipUpdate");
-    return this.getAudiencesBySegmentId().then((segments = {}) => {
-      return Promise.all(_.map(segments, item => {
-        return item.audience || this.createAudience(item.segment, extract);
-      }));
+    return this.getAudiencesBySegmentId().then((results = {}) => {
+      const audiences = [];
+      const audiencesToCreate = [];
+      _.each(results, ({ audience, segment }) => {
+        if (audience) {
+          audiences.push(audience);
+        } else {
+          audiencesToCreate.push(segment);
+        }
+      });
+
+      if (!create || audiencesToCreate.length === 0) {
+        return Promise.resolve(audiences);
+      }
+
+      return this.createAudiences(audiencesToCreate, { extract })
+        .then(newAudiences => audiences.concat(newAudiences));
     });
   }
 
@@ -212,7 +250,10 @@ export default class SegmentSyncAgent {
    */
   handleUserLeftSegment(user, segment) {
     return this.getOrCreateAudienceForSegment(segment).then(audience => {
-      return audience && this.removeUsersFromAudience(audience.id, [user]);
+      if (this.shouldSyncUser(user)) {
+        return audience && this.removeUsersFromAudience(audience.id, [user]);
+      }
+      return this.removeUsersFromAudiences([user]);
     });
   }
 
@@ -243,8 +284,8 @@ export default class SegmentSyncAgent {
     const mapping = this.getPrivateSetting("segment_mapping") || {};
     const audienceId = mapping[segment.id] || null;
 
-    return audienceId && this.deleteAudience(audienceId, segment.id)
-    .catch(err => console.warn("error deleting audience: ", err));
+    return audienceId &&
+      this.deleteAudience(audienceId, segment.id);
   }
 
   _getExtractFields() {
@@ -262,15 +303,20 @@ export default class SegmentSyncAgent {
    * @param  {String} format - csv or json
    * @return {Promise}
    */
-  requestExtract({ segment = null, format = "json" }) {
+  requestExtract({ segment = null, format = "json", path = "batch", fields = [] }) {
     const { hostname } = this.req;
     const search = (this.req.query || {});
+    if (segment) {
+      search.segment_id = segment.id;
+    }
     const url = URI(`https://${hostname}`)
-      .path("batch")
+      .path(path)
       .search(search)
       .toString();
 
-    const fields = this._getExtractFields();
+    if (_.isEmpty(fields)) {
+      fields = this._getExtractFields();
+    }
 
     return (() => {
       if (segment == null) {
@@ -297,17 +343,17 @@ export default class SegmentSyncAgent {
    * @param  {String} audienceId - An Audience ID
    * @return {Promise -> ship}
    */
-  saveAudienceMapping(segmentId, audienceId) {
+  saveAudiencesMapping(mapping, reset = false) {
     return this.hull.get(this.ship.id).then((ship) => {
       const private_settings = ship.private_settings || {};
-      private_settings.segment_mapping = Object.assign(
-        (private_settings.segment_mapping || {}),
-        { [segmentId]: audienceId }
-      );
+      const current_mapping = reset ? {} : private_settings.segment_mapping;
+      private_settings.segment_mapping = _.omitBy({
+        ...current_mapping,
+        ...mapping
+      }, _.isNil);
       return this.hull.put(this.ship.id, { private_settings });
     });
   }
-
 
   /**
    * Wrapper for batch call handlers
@@ -323,11 +369,18 @@ export default class SegmentSyncAgent {
 
     const batch = new BatchStream({ size: 500 });
 
-    return ps.wait(request({ url })
+    return request({ url })
       .pipe(decoder)
       .pipe(batch)
-      .pipe(ps.map({ concurrent: 2 }, callback))
-    );
+      .pipe(ps.map({ concurrent: 2 }, (...args) => {
+        try {
+          return callback(...args);
+        } catch (e) {
+          console.error(e);
+          throw e;
+        }
+      }))
+      .wait();
   }
 
   /**
@@ -360,7 +413,7 @@ export default class SegmentSyncAgent {
    */
   fetchSyncHullSegments() {
     const segmentIds = this.getPrivateSetting("synchronized_segments") || [];
-    this.hull.utils.log("fetchSyncHullSegments.segmentIds", segmentIds);
+    this.hull.logger.info("fetchSyncHullSegments.segmentIds", segmentIds);
     if (_.isEmpty(segmentIds)) {
       return Promise.resolve([]);
     }
@@ -394,7 +447,7 @@ export default class SegmentSyncAgent {
         return res;
       }, {});
       return audiencesBySegmentId;
-    }, (err) => console.log(err));
+    }, (err) => this.hull.logger.error(err));
   }
 
 }
