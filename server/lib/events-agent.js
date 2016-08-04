@@ -334,7 +334,7 @@ export default class EventsAgent {
       bounce: "Email Bounced",
       click: "Email Link Clicked",
       unsub: "Unsubscribed"
-    }
+    };
 
     return _.get(map, activity.action, activity.action);
   }
