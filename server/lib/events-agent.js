@@ -141,9 +141,12 @@ export default class EventsAgent {
     });
 
     // we forceBatch here, because the response for small number of operation
-    // can be huge and needs streaming
+    // can be huge and always needs streaming
     return this.client.batch(queries, { unpack: false, forceBatch: true })
       .then((results) => {
+        if (!results.response_body_url) {
+          return [];
+        }
         return this.handleMailchimpResponse(results)
           .pipe(es.through(function write(data) {
             data.emails.map(r => {
@@ -154,7 +157,7 @@ export default class EventsAgent {
           }))
           // the query for extract is send as POST method so it should not be
           // too long
-          .pipe(new BatchStream({ size: 10000 }))
+          .pipe(new BatchStream({ size: 4000 }))
           .pipe(ps.map((...args) => {
             try {
               return callback(...args);
@@ -286,12 +289,10 @@ export default class EventsAgent {
       return Promise.all(email.activity.map(a => {
         const uniqId = this.getUniqId({ email, activity: a });
         this.hull.logger.info("trackEvents.track", email.email_address, a.action);
-        return user.track(a.action, {
-          type: a.type || "",
-          title: a.title || "",
-          timestamp: a.timestamp,
-          campaign_id: a.campaign_id,
-        }, {
+        const eventName = this.getEventName(a);
+        const props = this.getEventProperties(a, email);
+
+        return user.track(eventName, props, {
           source: "mailchimp",
           event_id: uniqId,
           created_at: a.timestamp
@@ -316,5 +317,62 @@ export default class EventsAgent {
   getUniqId({ email, activity }) {
     const uniqString = [email.email_address, activity.type, activity.timestamp].join();
     return Buffer.from(uniqString, "utf8").toString("base64");
+  }
+
+  /**
+   * Implements data structure from Segment documentation.
+   * Mailchimp doesn't provide information for `Email Marked as Spam`
+   * and `Email Delivered` events
+   * @see https://segment.com/docs/spec/email/#email-delivered
+   * @param  {Object} activity
+   * @return {String}
+   */
+  getEventName(activity) {
+    const map = {
+      open: "Email Opened",
+      sent: "Email Sent",
+      bounce: "Email Bounced",
+      click: "Email Link Clicked",
+      unsub: "Unsubscribed"
+    }
+
+    return _.get(map, activity.action, activity.action);
+  }
+
+  /**
+   * @param  {Object} activity
+   * @return {Object}
+   */
+  getEventProperties(activity, email) {
+    const defaultProps = {
+      timestamp: activity.timestamp,
+      campaign_name: activity.title || "",
+      campaign_id: activity.campaign_id,
+      list_id: email.list_id,
+      list_name: this.credentials.mailchimp_list_name,
+      // TODO add ip, available here:
+      // http://developer.mailchimp.com/documentation/mailchimp/reference/reports/email-activity
+      // TODO add email_subject, available here:
+      // http://developer.mailchimp.com/documentation/mailchimp/reference/campaigns/#read-get_campaigns
+      // campaings.settings.subject_line
+    };
+    const props = {};
+
+    switch (activity.action) {
+      case "click":
+        _.defaults(props, defaultProps, {
+          link_url: activity.url
+        });
+        break;
+      case "bounce":
+        _.defaults(props, defaultProps, {
+          type: activity.type
+        });
+        break;
+      default:
+        _.defaults(props, defaultProps);
+    }
+
+    return props;
   }
 }
