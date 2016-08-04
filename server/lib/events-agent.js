@@ -42,18 +42,31 @@ export default class EventsAgent {
           if (_.isEmpty(chunk)) {
             return null;
           }
-          const emails = chunk.map(e => {
+          const emailsToExtract = chunk.reduce((emails, e) => {
             const timestamps = e.activity.sort((x, y) => moment(x.timestamp) - moment(y.timestamp));
-            const timestamp  =_.get(_.last(timestamps), "timestamp", e.campaign_send_time);
-            this.hull.logger.info("runCampaignStrategy.email", { email_address: e.email_address, timestamp, activities: e.activity, campaign_send_time: e.campaign_send_time });
-            return {
-              timestamp: timestamp,
+            const timestamp = _.get(_.last(timestamps), "timestamp", e.campaign_send_time);
+
+            // if there is already same email queued remove it if its older than
+            // actual or stop if it's not
+            const existingEmail = _.findIndex(emails, ["email_address", e.email_address]);
+            if (existingEmail !== -1) {
+              if (moment(emails[existingEmail].timestamp).isSameOrBefore(timestamp)) {
+                _.pullAt(emails, [existingEmail]);
+              } else {
+                return emails;
+              }
+            }
+
+            this.hull.logger.info("runCampaignStrategy.email", { email_address: e.email_address, timestamp });
+            emails.push({
+              timestamp,
               email_id: e.email_id,
               email_address: e.email_address
-            };
-          });
-          this.hull.logger.info("runCampaignStrategy.emailsChunk", emails.length);
-          const query = this.buildSegmentQuery(emails);
+            });
+            return emails;
+          }, []);
+          this.hull.logger.info("runCampaignStrategy.emailsChunk", emailsToExtract.length);
+          const query = this.buildSegmentQuery(emailsToExtract);
           return callback(query);
         });
       });
@@ -87,8 +100,17 @@ export default class EventsAgent {
    */
   buildSegmentQuery(emails) {
     const queries = emails.map(f => {
+      let time = moment(f.timestamp);
+
+      // FIXME Mailchimp - the email-activity reports sometimes returns
+      // 00:00:00 for the time part. If this is the last event, we will get stuck.
+      // This is a naive workaround push that time 24 hours ahead.
+      if (time.seconds() === 0 && time.minutes() === 0 && time.hours() === 0) {
+        time = time.add(1, "day");
+      }
+
       // eslint-disable-next-line object-curly-spacing, quote-props, key-spacing, comma-spacing
-      return {"and":{"filters":[{"terms":{"email.exact":[f.email_address]}},{"or":{"filters":[{"range":{"traits_mailchimp/latest_activity_at":{"lt":moment(f.timestamp).utc().format()}}},{"missing":{"field":"traits_mailchimp/latest_activity_at"}}]}}]}};
+      return {"and":{"filters":[{"terms":{"email.exact":[f.email_address]}},{"or":{"filters":[{"range":{"traits_mailchimp/latest_activity_at":{"lt":time.utc().format()}}},{"missing":{"field":"traits_mailchimp/latest_activity_at"}}]}}]}};
     });
 
     return {
