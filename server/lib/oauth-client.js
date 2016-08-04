@@ -1,3 +1,4 @@
+import _ from "lodash";
 import { Router } from "express";
 import bodyParser from "body-parser";
 import oauth2Factory from "simple-oauth2";
@@ -125,12 +126,16 @@ export default function oauth({
     rp({
       uri: `${api_endpoint}/3.0/lists`,
       qs: {
-        fields: "lists.id,lists.name"
+        fields: "lists.id,lists.name",
+        count: 250
       },
-      headers: { Authorization: `OAuth ${apiKey}`, },
+      headers: { Authorization: `OAuth ${apiKey}` },
       json: true
     }).then((data) => {
-      viewData.mailchimp_lists = data.lists;
+      viewData.mailchimp_lists = _.sortBy(data.lists,
+        (list) => (list.name || "").toLowerCase()
+      );
+
       return res.render("admin.html", viewData);
     }, mailchimpErrorHandler.bind(this, res, res, ship, hull));
   }
