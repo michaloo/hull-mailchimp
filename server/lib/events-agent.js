@@ -44,7 +44,7 @@ export default class EventsAgent {
           }
           const emails = chunk.map(e => {
             const timestamps = e.activity.sort((x, y) => moment(x.timestamp) - moment(y.timestamp));
-            this.hull.logger.info("runCampaignStrategy.email", { email_address, timestamp });
+            this.hull.logger.info("runCampaignStrategy.email", { email_address: e.email_address, timestamp });
             return {
               timestamp: _.get(_.last(timestamps), "timestamp", e.campaign_send_time),
               email_id: e.email_id,
