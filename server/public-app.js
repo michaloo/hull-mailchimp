@@ -66,6 +66,18 @@ export default function Server() {
     return agent.handleRequestTrackExtract();
   });
 
+  app.get("/checkBatchQueue", bodyParser.json(), fetchShip, (req, res) => {
+    const { ship, client } = req.hull || {};
+    const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
+    if (!ship || !agent.isConfigured()) {
+      return res.status(403).send("Ship is not configured properly");
+    }
+
+    client.logger.info("request.track.request", req.body);
+    res.end("ok");
+    return agent.checkBatchQueue();
+  });
+
   app.get("/manifest.json", (req, res) => {
     res.sendFile(path.resolve(__dirname, "..", "manifest.json"));
   });

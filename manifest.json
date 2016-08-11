@@ -65,9 +65,14 @@
   ],
   "schedules": [
     {
-      "url": "/track",
+      "url": "/requestTrack",
       "type": "cron",
       "value": "0 * * * *"
+    },
+    {
+      "url": "/checkBatchQueue",
+      "type": "cron",
+      "value": "* * * * *"
     }
  ]
 }

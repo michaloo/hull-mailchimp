@@ -4,7 +4,6 @@ import crypto from "crypto";
 import SyncAgent from "./sync-agent";
 import EventsAgent from "./events-agent";
 
-const batchQueueChecks = {};
 const eventsAgents = {};
 
 const MC_KEYS = [
@@ -384,10 +383,6 @@ export default class MailchimpList extends SyncAgent {
   getClient() {
     if (!this._client) {
       this._client = new this.MailchimpClientClass(this.getCredentials());
-
-      if (!batchQueueChecks[this._client.api_key]) {
-        batchQueueChecks[this._client.api_key] = setInterval(this.checkBatchQueue.bind(this), process.env.CHECK_BATCH_QUEUE || 30000);
-      }
     }
     return this._client;
   }
