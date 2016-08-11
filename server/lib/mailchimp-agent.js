@@ -42,8 +42,7 @@ export default class MailchimpList extends SyncAgent {
         return Promise.reject(error);
       }
       try {
-        handler[method](message);
-        return Promise.resolve("ok");
+        return handler[method](message);
       } catch (err) {
         const error = new Error(`Unhandled error: ${err.message}`);
         error.status = 500;
