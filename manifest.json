@@ -62,5 +62,12 @@
     {
       "url": "/notify"
     }
-  ]
+  ],
+  "schedules": [
+    {
+      "url": "/track",
+      "type": "cron",
+      "value": "0 * * * *"
+    }
+ ]
 }

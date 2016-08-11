@@ -426,8 +426,6 @@ export default class MailchimpList extends SyncAgent {
     const client = this.getClient();
     if (!eventsAgents[client.api_key]) {
       eventsAgents[client.api_key] = new EventsAgent(client, this.hull, this.getCredentials());
-
-      setInterval(this.handleRequestTrackExtract.bind(this), 3600000);
     }
     return eventsAgents[client.api_key];
   }
