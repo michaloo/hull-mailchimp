@@ -28,6 +28,7 @@ export default class KueAdapter {
     return Promise.fromCallback((callback) => {
       return this.queue.create(jobName, jobPayload)
         .ttl(ttl)
+        .removeOnComplete(true)
         .save(callback);
     });
   }
