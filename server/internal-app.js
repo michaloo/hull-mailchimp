@@ -36,27 +36,47 @@ export default function Server({ hostSecret, queueAgent }) {
     client.logger.info("request.batch.start", req.body);
 
     return agent.handleExtract(req.body, users => {
-      client.logger.info("request.batch.parseChunk", users.length);
-
-      const filteredUsers = users.filter((user) => {
-        return !_.isEmpty(user.email)
-          && agent.shouldSyncUser(user);
-      });
-
-      const usersToRemove = users.filter((user) => {
-        return !_.isEmpty(user["traits_mailchimp/unique_email_id"])
-            && !agent.shouldSyncUser(user);
-      });
-
-      client.logger.info("request.batch.filteredUsers", filteredUsers.length);
-      client.logger.info("request.batch.usersToRemove", usersToRemove.length);
-
-      return agent.addUsersToAudiences(filteredUsers, req.query.segment_id)
-        .then(() => agent.removeUsersFromAudiences(usersToRemove));
+      const queueReq = _.cloneDeep(req);
+      queueReq.url = queueReq.url.replace("batch", "batchChunk");
+      queueReq.body = {
+        users
+      };
+      return queueAgent.queueRequest(queueReq);
     }).then(() => {
       client.logger.info("request.batch.end");
       res.end("ok");
     });
+  });
+
+  app.post("/batchChunk", bodyParser.json(), fetchShip, (req, res) => {
+    const { ship, client } = req.hull || {};
+    const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
+    if (!ship || !agent.isConfigured()) {
+      return res.status(403).send("Ship is not configured properly");
+    }
+
+    const users = req.body.users;
+    client.logger.info("request.batchChunk.start", users.length);
+
+    const filteredUsers = users.filter((user) => {
+      return !_.isEmpty(user.email)
+        && agent.shouldSyncUser(user);
+    });
+
+    const usersToRemove = users.filter((user) => {
+      return !_.isEmpty(user["traits_mailchimp/unique_email_id"])
+          && !agent.shouldSyncUser(user);
+    });
+
+    client.logger.info("request.batch.filteredUsers", filteredUsers.length);
+    client.logger.info("request.batch.usersToRemove", usersToRemove.length);
+
+    return agent.addUsersToAudiences(filteredUsers, req.query.segment_id)
+      .then(() => agent.removeUsersFromAudiences(usersToRemove))
+      .then(() => {
+        client.logger.info("request.batch.end");
+        res.end("ok");
+      });
   });
 
   app.get("/requestTrack", bodyParser.json(), fetchShip, (req, res) => {
@@ -89,11 +109,11 @@ export default function Server({ hostSecret, queueAgent }) {
       //     && agent.shouldSyncUser(user);
       // });
       const queueReq = _.cloneDeep(req);
-      queueReq.path = "trackChunk";
+      queueReq.url = queueReq.url.replace("track", "trackChunk");
       queueReq.body = {
         users
       };
-      queueAgent.queueRequest(queueReq);
+      return queueAgent.queueRequest(queueReq);
       // return agent.getEventsAgent().runUserStrategy(users);
     }).then(() => {
       client.logger.info("request.track.end");
@@ -120,8 +140,9 @@ export default function Server({ hostSecret, queueAgent }) {
     }
 
     client.logger.info("request.track.request", req.body);
-    res.end("ok");
-    return agent.checkBatchQueue();
+
+    return agent.checkBatchQueue()
+      .then(() => res.end("ok"));
   });
 
   return app;

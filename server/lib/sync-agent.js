@@ -367,7 +367,7 @@ export default class SegmentSyncAgent {
     if (!url) return Promise.reject(new Error("Missing URL"));
     const decoder = format === "csv" ? CSVStream.createStream({ escapeChar: "\"", enclosedChar: "\"" }) : JSONStream.parse();
 
-    const batch = new BatchStream({ size: 500 });
+    const batch = new BatchStream({ size: 100 });
 
     return request({ url })
       .pipe(decoder)
