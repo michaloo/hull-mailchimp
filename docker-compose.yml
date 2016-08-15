@@ -3,7 +3,7 @@ services:
     node-cli:
         image: node:5
         env_file: .env
-        command: bash
+        entrypoint: bash
         working_dir: /app
         ports:
             - "8082:8082"
@@ -12,7 +12,7 @@ services:
     watch:
         image: node:5
         env_file: .env
-        command: npm run watch
+        entrypoint: npm run watch
         working_dir: /app
         ports:
             - "8082:8082"
@@ -27,6 +27,6 @@ services:
         volumes:
             - .:/app
         working_dir: /app
-        command: node_modules/kue/bin/kue-dashboard -p 3050 -r redis://docker.local:6379
+        entrypoint: node_modules/kue/bin/kue-dashboard -p 3050 -r redis://docker.local:6379
         ports:
           - "3050:3050"

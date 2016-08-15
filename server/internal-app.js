@@ -2,21 +2,16 @@ import express from "express";
 import { NotifHandler } from "hull";
 import _ from "lodash";
 import bodyParser from "body-parser";
-import kue from "kue";
+// import kue from "kue";
 
 import fetchShip from "./lib/middlewares/fetch-ship";
 import MailchimpAgent from "./lib/mailchimp-agent";
 import MailchimpClient from "./lib/mailchimp-client";
-import QueueAgent from "./lib/queue-agent";
+// import QueueAgent from "./lib/queue/queue-agent";
+// import KueAdapter from "./lib/queue/adapter/kue";
 
-export default function Server({ hostSecret }) {
+export default function Server({ hostSecret, queueAgent }) {
   const app = express();
-
-  const q = kue.createQueue({
-    redis: process.env.REDIS_URL
-  });
-
-  const queueAgent = new QueueAgent(q);
 
   queueAgent.processRequest(app);
 
@@ -39,7 +34,6 @@ export default function Server({ hostSecret }) {
     }
 
     client.logger.info("request.batch.start", req.body);
-    res.end("ok");
 
     return agent.handleExtract(req.body, users => {
       client.logger.info("request.batch.parseChunk", users.length);
@@ -61,7 +55,21 @@ export default function Server({ hostSecret }) {
         .then(() => agent.removeUsersFromAudiences(usersToRemove));
     }).then(() => {
       client.logger.info("request.batch.end");
+      res.end("ok");
     });
+  });
+
+  app.get("/requestTrack", bodyParser.json(), fetchShip, (req, res) => {
+    const { ship, client } = req.hull || {};
+    const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
+    if (!ship || !agent.isConfigured()) {
+      return res.status(403).send("Ship is not configured properly");
+    }
+
+    client.logger.info("request.track.request", req.body);
+
+    return agent.handleRequestTrackExtract()
+      .then(() => res.end("ok"));
   });
 
   app.post("/track", bodyParser.json(), fetchShip, (req, res) => {
@@ -72,7 +80,6 @@ export default function Server({ hostSecret }) {
     }
 
     client.logger.info("request.track.start", req.body);
-    res.end("ok");
     return agent.handleExtract(req.body, users => {
       client.logger.info("request.track.parseChunk", users.length);
       // TODO: decide if to filter users here
@@ -81,8 +88,40 @@ export default function Server({ hostSecret }) {
       //   return !_.isEmpty(user.email)
       //     && agent.shouldSyncUser(user);
       // });
-      return agent.getEventsAgent().runUserStrategy(users);
+      const queueReq = _.cloneDeep(req);
+      queueReq.path = "trackChunk";
+      queueReq.body = {
+        users
+      };
+      queueAgent.queueRequest(queueReq);
+      // return agent.getEventsAgent().runUserStrategy(users);
+    }).then(() => {
+      client.logger.info("request.track.end");
+      res.end("ok");
     });
+  });
+
+  app.post("/trackChunk", bodyParser.json(), fetchShip, (req, res) => {
+    const { ship, client } = req.hull || {};
+    const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
+    if (!ship || !agent.isConfigured()) {
+      return res.status(403).send("Ship is not configured properly");
+    }
+    const users = _.get(req.body, "users", []);
+    return agent.getEventsAgent().runUserStrategy(users)
+      .then(() => res.end("ok"));
+  });
+
+  app.get("/checkBatchQueue", bodyParser.json(), fetchShip, (req, res) => {
+    const { ship, client } = req.hull || {};
+    const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
+    if (!ship || !agent.isConfigured()) {
+      return res.status(403).send("Ship is not configured properly");
+    }
+
+    client.logger.info("request.track.request", req.body);
+    res.end("ok");
+    return agent.checkBatchQueue();
   });
 
   return app;

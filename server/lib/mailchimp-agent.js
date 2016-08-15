@@ -435,7 +435,7 @@ export default class MailchimpList extends SyncAgent {
    */
   handleRequestTrackExtract() {
     const eventsAgent = this.getEventsAgent();
-    eventsAgent.runCampaignStrategy(query => {
+    return eventsAgent.runCampaignStrategy(query => {
       const segment = {
         query
       };
