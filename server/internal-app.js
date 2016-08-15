@@ -2,13 +2,10 @@ import express from "express";
 import { NotifHandler } from "hull";
 import _ from "lodash";
 import bodyParser from "body-parser";
-// import kue from "kue";
 
 import fetchShip from "./lib/middlewares/fetch-ship";
 import MailchimpAgent from "./lib/mailchimp-agent";
 import MailchimpClient from "./lib/mailchimp-client";
-// import QueueAgent from "./lib/queue/queue-agent";
-// import KueAdapter from "./lib/queue/adapter/kue";
 
 export default function Server({ hostSecret, queueAgent }) {
   const app = express();
