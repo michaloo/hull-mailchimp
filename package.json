@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "lint": "eslint server",
-    "start": "node ./bin/start",
+    "start": "node  --optimize_for_size --max_old_space_size=460 --gc_interval=100 ./bin/start",
     "test": "NODE_ENV=test mocha mocha-babel.js -R spec ./tests",
     "watch": "babel-watch -L main.js"
   },
