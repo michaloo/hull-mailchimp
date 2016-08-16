@@ -35,7 +35,7 @@ export default class QueueAgent {
         let query = request(app);
         query = query[job.data.method.toLowerCase()](job.data.path)
           .query(job.data.query)
-          .set({ "host": job.data.hostname });
+          .set({ host: job.data.hostname });
 
         if (job.data.method === "POST") {
           query = query.send(job.data.body);

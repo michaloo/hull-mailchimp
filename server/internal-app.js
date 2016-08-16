@@ -154,7 +154,7 @@ export default function Server({ hostSecret, queueAgent }) {
 
     client.logger.info("request.sync.start");
 
-    agent.removeAudiences()
+    return agent.removeAudiences()
     .then(agent.handleShipUpdate.bind(agent, false, true))
     .then(agent.fetchSyncHullSegments.bind(agent))
     .then(segments => {

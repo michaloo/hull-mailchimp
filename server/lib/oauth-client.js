@@ -3,11 +3,8 @@ import { Router } from "express";
 import bodyParser from "body-parser";
 import oauth2Factory from "simple-oauth2";
 import rp from "request-promise";
-import Promise from "bluebird";
 
 import fetchShip from "./middlewares/fetch-ship";
-import MailchimpAgent from "./mailchimp-agent";
-import MailchimpClient from "./mailchimp-client";
 
 export default function oauth({
   name, clientID, clientSecret,
