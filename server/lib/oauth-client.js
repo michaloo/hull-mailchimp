@@ -166,35 +166,10 @@ export default function oauth({
     const viewData = {
       name,
       select_url: `https://${req.hostname}${req.baseUrl}${selectUrl}?hullToken=${req.hull.hullToken}`,
-      form_action: `https://${req.hostname}${req.baseUrl}${syncUrl}?hullToken=${req.hull.hullToken}`,
+      form_action: `https://${req.hostname}/sync?hullToken=${req.hull.hullToken}`,
       mailchimp_list_name
     };
     return res.render("sync.html", viewData);
-  }
-
-  /**
-   * Sync all operation handler. It drops all Mailchimp Segments aka Audiences
-   * then creates them according to `segment_mapping` settings and triggers
-   * sync for all users
-   */
-  function handleSync(req, res) {
-    const { ship, client } = req.hull || {};
-    const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
-
-    client.logger.info("Start sync all operation");
-    res.end("ok");
-    agent.removeAudiences()
-    .then(agent.handleShipUpdate.bind(agent, false, true))
-    .then(agent.fetchSyncHullSegments.bind(agent))
-    .then(segments => {
-      client.logger.info("Request the extract for segments", segments.length);
-      if (segments.length === 0) {
-        return agent.requestExtract({});
-      }
-      return Promise.map(segments, segment => {
-        return agent.requestExtract({ segment });
-      });
-    });
   }
 
   const router = Router();
@@ -206,7 +181,6 @@ export default function oauth({
   router.get(syncUrl, renderSync);
 
   router.post(selectUrl, bodyParser.urlencoded({ extended: true }), handleSelect);
-  router.post(syncUrl, handleSync);
 
   return router;
 }

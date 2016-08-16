@@ -38,6 +38,7 @@ export default function Server({ hostSecret, queueAgent }) {
       queueReq.body = {
         users
       };
+
       return queueAgent.queueRequest(queueReq);
     }).then(() => {
       client.logger.info("request.batch.end");
@@ -71,7 +72,7 @@ export default function Server({ hostSecret, queueAgent }) {
     return agent.addUsersToAudiences(filteredUsers, req.query.segment_id)
       .then(() => agent.removeUsersFromAudiences(usersToRemove))
       .then(() => {
-        client.logger.info("request.batch.end");
+        client.logger.info("request.batchChunk.end");
         res.end("ok");
       });
   });
@@ -111,7 +112,6 @@ export default function Server({ hostSecret, queueAgent }) {
         users
       };
       return queueAgent.queueRequest(queueReq);
-      // return agent.getEventsAgent().runUserStrategy(users);
     }).then(() => {
       client.logger.info("request.track.end");
       res.end("ok");
@@ -135,11 +135,38 @@ export default function Server({ hostSecret, queueAgent }) {
     if (!ship || !agent.isConfigured()) {
       return res.status(403).send("Ship is not configured properly");
     }
-
-    client.logger.info("request.track.request", req.body);
-
+    client.logger.info("request.checkBatchQueue");
     return agent.checkBatchQueue()
       .then(() => res.end("ok"));
+  });
+
+  /**
+   * Sync all operation handler. It drops all Mailchimp Segments aka Audiences
+   * then creates them according to `segment_mapping` settings and triggers
+   * sync for all users
+   */
+  app.post("/sync", bodyParser.json(), fetchShip, (req, res) => {
+    const { ship, client } = req.hull || {};
+    const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
+    if (!ship || !agent.isConfigured()) {
+      return res.status(403).send("Ship is not configured properly");
+    }
+
+    client.logger.info("request.sync.start");
+
+    agent.removeAudiences()
+    .then(agent.handleShipUpdate.bind(agent, false, true))
+    .then(agent.fetchSyncHullSegments.bind(agent))
+    .then(segments => {
+      client.logger.info("Request the extract for segments", segments.length);
+      if (segments.length === 0) {
+        return agent.requestExtract({});
+      }
+      return Promise.map(segments, segment => {
+        return agent.requestExtract({ segment });
+      });
+    })
+    .then(() => res.end("ok"));
   });
 
   return app;

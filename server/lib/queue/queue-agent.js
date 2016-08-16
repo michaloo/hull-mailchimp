@@ -21,7 +21,7 @@ export default class QueueAgent {
    * @return {Promise}
    */
   queueRequest(req) {
-    const options = _.pick(req, ["method", "path", "query", "body"]);
+    const options = _.pick(req, ["method", "path", "query", "body", "hostname", "headers"]);
     options.title = _.get(req, "path", "");
     return this.adapter.create("http_requests", options, 30000);
   }
@@ -33,9 +33,9 @@ export default class QueueAgent {
     return this.adapter.process("http_requests", (job) => {
       return Promise.fromCallback((callback) => {
         let query = request(app);
-
-        query = query[job.data.method.toLowerCase()](`/${job.data.path.replace("/", "")}`)
-          .query(job.data.query);
+        query = query[job.data.method.toLowerCase()](job.data.path)
+          .query(job.data.query)
+          .set({ "host": job.data.hostname });
 
         if (job.data.method === "POST") {
           query = query.send(job.data.body);

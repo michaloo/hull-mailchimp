@@ -31,6 +31,11 @@ export default function Server({ queueAgent }) {
     res.end("ok");
   });
 
+  app.post("/sync", snsMessage, bodyParser.json(), (req, res) => {
+    queueAgent.queueRequest(req);
+    res.end("ok");
+  });
+
   app.use("/auth", oauth({
     name: "Mailchimp",
     clientID: process.env.MAILCHIMP_CLIENT_ID,
