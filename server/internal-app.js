@@ -2,6 +2,7 @@ import express from "express";
 import { NotifHandler } from "hull";
 import _ from "lodash";
 import bodyParser from "body-parser";
+import Promise from "bluebird";
 
 import fetchShip from "./lib/middlewares/fetch-ship";
 import MailchimpAgent from "./lib/mailchimp-agent";
