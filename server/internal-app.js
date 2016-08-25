@@ -78,7 +78,7 @@ export default function Server({ hostSecret, queueAgent }) {
       });
   });
 
-  app.get("/requestTrack", bodyParser.json({ limit: "10mb" }), fetchShip, (req, res) => {
+  app.post("/requestTrack", bodyParser.json({ limit: "10mb" }), fetchShip, (req, res) => {
     const { ship, client } = req.hull || {};
     const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
     if (!ship || !agent.isConfigured()) {
@@ -130,7 +130,7 @@ export default function Server({ hostSecret, queueAgent }) {
       .then(() => res.end("ok"));
   });
 
-  app.get("/checkBatchQueue", bodyParser.json(), fetchShip, (req, res) => {
+  app.post("/checkBatchQueue", bodyParser.json(), fetchShip, (req, res) => {
     const { ship, client } = req.hull || {};
     const agent = new MailchimpAgent(ship, client, req, MailchimpClient);
     if (!ship || !agent.isConfigured()) {
