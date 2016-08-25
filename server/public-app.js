@@ -49,12 +49,12 @@ export default function Server({ queueAgent }) {
     authorizationPath: "/oauth2/authorize"
   }));
 
-  app.get("/requestTrack", bodyParser.json(), fetchShip, (req, res) => {
+  app.post("/requestTrack", bodyParser.json(), fetchShip, (req, res) => {
     queueAgent.queueRequest(req);
     res.end("ok");
   });
 
-  app.get("/checkBatchQueue", bodyParser.json(), fetchShip, (req, res) => {
+  app.post("/checkBatchQueue", bodyParser.json(), fetchShip, (req, res) => {
     queueAgent.queueRequest(req);
     res.end("ok");
   });
