@@ -450,4 +450,25 @@ export default class SegmentSyncAgent {
     }, (err) => this.hull.logger.error(err));
   }
 
+  /**
+   * Returns the information from ship private settings mapping
+   * in structure compatible with fetchAudiencesBySegmentId
+   * {
+   *  segment_id: {
+   *    segment: { id: segment_id }
+   *    audience: { id: audience_id }
+   *  }
+   * }
+   */
+  getMappedAudiences() {
+    const mapping = this.getPrivateSetting("segment_mapping") || {};
+    const audiences = {};
+    _.each(mapping, (value, key) => {
+      audiences[key] = {
+        segment: { id: key },
+        audience: { id: value }
+      };
+    });
+    return Promise.resolve(audiences);
+  }
 }

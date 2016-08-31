@@ -194,7 +194,7 @@ export default class MailchimpList extends SyncAgent {
       u => !_.isEmpty(u.email) && !_.isEmpty(u["traits_mailchimp/unique_email_id"])
     );
     this.hull.logger.info("removeUsersFromAudiences.usersToRemove", usersToRemove.length);
-    return this.getAudiencesBySegmentId()
+    return this.getMappedAudiences()
       .then(audiences => {
         const batch = usersToRemove.reduce((ops, user) => {
           const { email } = user;
@@ -242,7 +242,7 @@ export default class MailchimpList extends SyncAgent {
     this.hull.logger.info("addUsersToAudiences.usersToAdd", { usersToAdd: usersToAdd.length, users: users.length, segment_id });
     return Promise.all([
       this.ensureUsersSubscribed(usersToAdd),
-      this.getAudiencesBySegmentId()
+      this.getMappedAudiences()
     ])
     .then(([usersSubscribed, audiences]) => {
       const batch = usersSubscribed.reduce((ops, user) => {
@@ -273,10 +273,10 @@ export default class MailchimpList extends SyncAgent {
         uniqSuccess: uniqSuccess.length,
         errors: errors.length
       });
-      errors.map((e) => this.hull.logger.info("addUsersToAudiences.responseError", { error: e.toString(), message: e.message }));
+      errors.map((e) => this.hull.logger.info("addUsersToAudiences.responseError", { errors: e.errors, message: e.message }));
       return Promise.all(uniqSuccess.map((mc) => {
         this.hull.logger.info("addUsersToAudiences.updateUser", mc.email_address);
-        const user = _.find(usersSubscribed, { email: mc.email_address });
+        const user = _.find(usersSubscribed, (u) => u.email.toLowerCase() === mc.email_address.toLowerCase());
         if (user) {
           // Update user's mailchimp/* traits
           return this.updateUser(user, mc);
@@ -310,7 +310,7 @@ export default class MailchimpList extends SyncAgent {
     // or have already been rejected by mailchimp
     const usersToSubscribe = users.filter(user => {
       return !_.isEmpty(user.email)
-          && _.isEmpty(user["traits_mailchimp/unique_email_id"])
+          // && _.isEmpty(user["traits_mailchimp/unique_email_id"])
           && _.isEmpty(user["traits_mailchimp/import_error"]);
     });
 
