@@ -274,6 +274,7 @@ export default class MailchimpList extends SyncAgent {
       errors.map((e) => this.hull.logger.info("addUsersToAudiences.responseError", { error: e.toString(), message: e.message }));
       return Promise.all(uniqSuccess.map((mc) => {
         this.hull.logger.info("addUsersToAudiences.updateUser", mc.email_address);
+        const email = mc.email_address && mc.email_address.toLowerCase();
         const user = _.find(usersSubscribed, { email: mc.email_address });
         if (user) {
           // Update user's mailchimp/* traits
