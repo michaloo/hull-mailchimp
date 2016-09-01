@@ -23,7 +23,7 @@ export default class QueueAgent {
   queueRequest(req) {
     const options = _.pick(req, ["method", "path", "query", "body", "hostname", "headers"]);
     options.title = _.get(req, "path", "");
-    return this.adapter.create("http_requests", options, 30000);
+    return this.adapter.create("http_requests", options, 180000);
   }
 
   /**
