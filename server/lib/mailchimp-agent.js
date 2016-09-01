@@ -366,7 +366,7 @@ export default class MailchimpList extends SyncAgent {
       const key = _.last(path.split("."));
       const value = _.get(mailchimpUser, path);
       const prev = user[`traits_mailchimp/${key}`];
-      if (!_.isEmpty(value) && value !== prev) {
+      if (!_.isEmpty(value)/* && value !== prev*/) {
         t[key] = value;
       }
       return t;
